@@ -4,6 +4,8 @@ Uso:
     python run.py                 # abre a janela do app
     python run.py --navegador     # abre o painel no navegador padrão
     python run.py --sem-janela    # só o motor/servidor (painel em http://127.0.0.1:8765)
+    python run.py --instalar-inicio   # abre sozinho quando o Windows iniciar
+    python run.py --remover-inicio    # desfaz o anterior
 """
 from __future__ import annotations
 
@@ -13,11 +15,12 @@ import sys
 import threading
 import time
 import webbrowser
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import uvicorn
 
-from sniper import config
+from sniper import config, winsys
 from sniper.server import create_app
 
 BASE = Path(__file__).parent
@@ -28,7 +31,18 @@ def main() -> None:
     ap.add_argument("--config", default=str(BASE / "config.toml"))
     ap.add_argument("--navegador", action="store_true")
     ap.add_argument("--sem-janela", action="store_true")
+    ap.add_argument("--instalar-inicio", action="store_true")
+    ap.add_argument("--remover-inicio", action="store_true")
     args = ap.parse_args()
+
+    if args.instalar_inicio:
+        lnk = winsys.instalar_inicio(BASE)
+        print(f"Atalho criado em {lnk}. O Sniper vai abrir sozinho quando o Windows iniciar.")
+        return
+    if args.remover_inicio:
+        print("Atalho de inicialização removido." if winsys.remover_inicio()
+              else "Não havia atalho de inicialização.")
+        return
 
     cfg_path = Path(args.config)
     if not cfg_path.exists():
@@ -37,7 +51,10 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s",
                         handlers=[logging.StreamHandler(),
-                                  logging.FileHandler(BASE / "data" / "sniper.log", encoding="utf-8")])
+                                  RotatingFileHandler(BASE / "data" / "sniper.log", maxBytes=5 * 1024 * 1024,
+                                                      backupCount=4, encoding="utf-8")])
+    if winsys.impedir_suspensao():
+        logging.getLogger("sniper").info("Suspensão do Windows bloqueada enquanto o Sniper roda")
     settings = config.load(cfg_path)
     app = create_app(settings)
     url = f"http://127.0.0.1:{settings.port}"
