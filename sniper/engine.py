@@ -30,6 +30,7 @@ class Engine:
         self.watch_status: dict[str, dict] = {}
         self.paused = False
         self._tasks: list[asyncio.Task] = []
+        self.restart_delay = 30.0  # segundos até recriar um loop que caiu
 
         self.limiters: dict[str, RateLimiter] = {}
         self.store_status: dict[str, dict] = {}
@@ -86,7 +87,7 @@ class Engine:
             self.watch_status[w.name] = {"store": w.store, "state": "aguardando", "last_run": None,
                                          "count": 0, "error": None, "interval": w.interval,
                                          "duration": None}
-            self._tasks.append(asyncio.create_task(self._loop(w)))
+            self._tasks.append(asyncio.create_task(self._supervise(w.name, lambda w=w: self._loop(w))))
         self._tasks.append(asyncio.create_task(self._housekeeping()))
         self.log("info", f"Motor iniciado com {len(self._tasks) - 1} regra(s) de vigilância")
 
@@ -101,6 +102,20 @@ class Engine:
             if not self.paused:
                 await self.run_watch(w)
             await asyncio.sleep(w.interval)
+
+    async def _supervise(self, nome: str, factory) -> None:
+        """Roda factory(); se cair com erro inesperado, registra e recria depois de restart_delay."""
+        while True:
+            try:
+                await factory()
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                log.exception("Loop %s caiu", nome)
+                self.log("erro", f"[{nome}] loop caiu ({type(e).__name__}: {e}); "
+                                 f"reiniciando em {int(self.restart_delay)}s")
+                await asyncio.sleep(self.restart_delay)
 
     async def _housekeeping(self) -> None:
         while True:
@@ -123,6 +138,19 @@ class Engine:
             self.log("erro", f"[{w.name}] falha inesperada: {e}")
             return 0
 
+        r = await self._process(w, col, offers)
+        st.update(state="ok", error=None, last_run=time.time(), count=len(offers),
+                  duration=round(time.time() - t0, 2), descartados=r["rejeitados"])
+        self.emit("watch", name=w.name, status=st)
+        if r["alertas"] or r["descartes"]:
+            self.log("info", f"[{w.name}] {len(offers)} lidos · {r['alertas']} alerta(s) · "
+                             f"{r['descartes']} descartado(s)")
+        return r["alertas"]
+
+    async def _process(self, w: Watch, col: Collector, offers: list[Offer]) -> dict:
+        """Filtra, avalia, confere vendedor e preço e dispara alertas. Usado por vigiar, varrer e fila rápida."""
+        for o in offers:
+            o.watch = w.name
         fcfg, det = self.s.filters, self.s.detector
         blocked = self.db.blocked_sellers()
 
@@ -173,13 +201,7 @@ class Engine:
             self.emit("alert", alert=a)
             for n in self.notifiers:
                 asyncio.create_task(n.send(a))
-
-        st.update(state="ok", error=None, last_run=time.time(), count=len(offers),
-                  duration=round(time.time() - t0, 2), descartados=len(rejected))
-        self.emit("watch", name=w.name, status=st)
-        if alerts or discards:
-            self.log("info", f"[{w.name}] {len(offers)} lidos · {alerts} alerta(s) · {discards} descartado(s)")
-        return alerts
+        return {"alertas": alerts, "descartes": discards, "rejeitados": len(rejected)}
 
     def _alert_worthy(self, v: Verdict) -> bool:
         return v.is_alert and v.score >= self.s.min_alert_score
