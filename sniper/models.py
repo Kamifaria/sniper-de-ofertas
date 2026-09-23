@@ -56,6 +56,9 @@ class Watch:
     min_price: Optional[float] = None  # ignora itens baratos demais por natureza (capinhas etc.)
     exclude_words: list[str] = field(default_factory=list)  # palavras extras para descartar
     allow_used: bool = False         # aceitar produtos usados nesta regra
+    kind: str = "vigiar"             # "vigiar" (busca/itens) ou "varrer" (rodízio pelo catálogo)
+    sweep_categories: Optional[list[str]] = None  # varrer: categorias escolhidas; None = todas
+    cycle_min: int = 60              # varrer: minutos para dar uma volta completa
 
 
 @dataclass

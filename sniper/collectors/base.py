@@ -13,6 +13,8 @@ class CollectorError(Exception):
 
 class Collector(ABC):
     store: str = ""
+    supports_sweep: bool = False     # implementa sweep_units() + sweep()
+    supports_refresh: bool = False   # implementa refresh() (fila rápida)
 
     @abstractmethod
     async def collect(self, watch: Watch) -> list[Offer]:
@@ -26,6 +28,18 @@ class Collector(ABC):
         """Relê o anúncio direto na loja. Retorna a oferta atualizada, ou None se sumiu/esgotou.
         Por padrão devolve a mesma oferta (loja sem suporte a reconfirmação)."""
         return offer
+
+    async def sweep_units(self, watch: Watch) -> list[str]:
+        """Unidades de varredura (ex.: categorias finais), em ordem estável."""
+        raise NotImplementedError
+
+    async def sweep(self, unit: str, watch: Watch) -> list[Offer]:
+        """Lê uma unidade de varredura."""
+        raise NotImplementedError
+
+    async def refresh(self, item_ids: list[str]) -> list[Offer]:
+        """Relê vários itens de uma vez (fila rápida)."""
+        raise NotImplementedError
 
     async def close(self) -> None:  # pragma: no cover
         pass

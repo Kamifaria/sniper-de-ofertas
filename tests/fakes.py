@@ -60,3 +60,27 @@ class MotorDeTeste:
     def __exit__(self, *exc):
         self.engine.db.conn.close()
         self.tmp.cleanup()
+
+
+class FakeSweepCollector(FakeCollector):
+    """Loja com varredura: cada unidade devolve uma oferta. `fail` = unidades que dão erro; `down` = sem internet."""
+    supports_sweep = True
+
+    def __init__(self, units):
+        super().__init__()
+        self.units = list(units)
+        self.seen: list[str] = []
+        self.fail: set[str] = set()
+        self.down = False
+
+    async def sweep_units(self, watch):
+        return list(self.units)
+
+    async def sweep(self, unit, watch):
+        import httpx
+        if self.down:
+            raise httpx.ConnectError("sem internet")
+        if unit in self.fail:
+            raise ValueError("categoria sumiu")
+        self.seen.append(unit)
+        return [oferta(f"{unit}-1", 100.0, title="Produto qualquer", catalog="")]

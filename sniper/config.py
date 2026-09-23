@@ -75,6 +75,20 @@ def load(path: str | Path) -> Settings:
             allow_used=bool(w.get("aceitar_usados", False)),
         ))
 
+    for v in raw.get("varrer", []):
+        cats = v.get("categorias", "todas")
+        watches.append(Watch(
+            name=v["nome"],
+            store=v.get("loja", "mercadolivre"),
+            kind="varrer",
+            sweep_categories=None if cats == "todas" else [str(c) for c in cats],
+            cycle_min=int(v.get("ciclo_minutos", 60)),
+            max_pages=int(v.get("paginas", 1)),
+            min_price=v.get("preco_minimo"),
+            exclude_words=[str(x) for x in v.get("excluir", [])],
+            allow_used=bool(v.get("aceitar_usados", False)),
+        ))
+
     lojas: dict[str, LojaConfig] = {}
     for chave, lc in raw.get("lojas", {}).items():
         pm = lc.get("por_minuto")

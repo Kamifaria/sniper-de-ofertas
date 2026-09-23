@@ -7,6 +7,8 @@ import time
 from collections import deque
 from collections import defaultdict
 
+import httpx
+
 from . import detector, filters
 from .collectors import Collector, CollectorError
 from .config import Settings
@@ -17,6 +19,8 @@ from .ratelimit import RateLimiter
 from .stores import LOJAS
 
 log = logging.getLogger("sniper.engine")
+
+UNIDADES_TTL_S = 86400  # relê a lista de unidades de varredura (ex.: categorias) uma vez por dia
 
 
 class Engine:
@@ -80,16 +84,20 @@ class Engine:
     async def start(self) -> None:
         for w in self.s.watches:
             if w.store not in self.collectors:
-                self.watch_status[w.name] = {"store": w.store, "state": "sem coletor",
+                self.watch_status[w.name] = {"store": w.store, "kind": w.kind, "state": "sem coletor",
                                              "error": self._motivo_sem_coletor(w.store),
                                              "count": 0, "interval": w.interval}
                 continue
-            self.watch_status[w.name] = {"store": w.store, "state": "aguardando", "last_run": None,
-                                         "count": 0, "error": None, "interval": w.interval,
+            self.watch_status[w.name] = {"store": w.store, "kind": w.kind, "state": "aguardando",
+                                         "last_run": None, "count": 0, "error": None,
+                                         "interval": w.interval if w.kind == "vigiar" else None,
                                          "duration": None}
-            self._tasks.append(asyncio.create_task(self._supervise(w.name, lambda w=w: self._loop(w))))
+            loop = self._sweep_loop if w.kind == "varrer" else self._loop
+            self._tasks.append(asyncio.create_task(
+                self._supervise(w.name, lambda w=w, loop=loop: loop(w))))
         self._tasks.append(asyncio.create_task(self._housekeeping()))
-        self.log("info", f"Motor iniciado com {len(self._tasks) - 1} regra(s) de vigilância")
+        ativas = sum(1 for w in self.s.watches if w.store in self.collectors)
+        self.log("info", f"Motor iniciado com {ativas} regra(s) ativa(s)")
 
     async def stop(self) -> None:
         for t in self._tasks:
@@ -102,6 +110,83 @@ class Engine:
             if not self.paused:
                 await self.run_watch(w)
             await asyncio.sleep(w.interval)
+
+    async def _sweep_loop(self, w: Watch) -> None:
+        while True:
+            if self.paused:
+                await asyncio.sleep(5)
+                continue
+            await self.sweep_step(w)
+            await asyncio.sleep(self._sweep_gap(w))
+
+    def _sweep_gap(self, w: Watch) -> float:
+        sw = self.db.get_sweep(w.name)
+        n = len(sw["units"]) if sw and sw["units"] else 0
+        return w.cycle_min * 60 / n if n else 60.0
+
+    async def _sweep_state(self, w: Watch, col: Collector) -> dict:
+        sw = self.db.get_sweep(w.name)
+        if sw and sw["units"] and time.time() - sw["units_ts"] < UNIDADES_TTL_S:
+            return sw
+        units = await col.sweep_units(w)
+        cursor, started = 0, time.time()
+        if sw and sw["units"]:
+            atual = sw["units"][sw["cursor"] % len(sw["units"])]
+            if atual in units:  # lista recarregada: continua na mesma unidade
+                cursor, started = units.index(atual), sw["cycle_started"]
+        self.db.save_sweep(w.name, units, time.time(), cursor, started)
+        return self.db.get_sweep(w.name)
+
+    async def sweep_step(self, w: Watch) -> int:
+        """Lê a próxima unidade da varredura (ex.: uma categoria) e avança o cursor salvo no banco."""
+        st = self.watch_status[w.name]
+        col = self.collectors[w.store]
+        if not col.supports_sweep:
+            st.update(state="loja não suporta varredura", error=None, last_run=time.time())
+            return 0
+        st["state"] = "coletando"
+        t0 = time.time()
+        try:
+            sw = await self._sweep_state(w, col)
+        except Exception as e:  # noqa: BLE001
+            msg = str(e) if isinstance(e, CollectorError) else f"{type(e).__name__}: {e}"
+            st.update(state="erro", error=f"Não consegui listar as unidades: {msg}", last_run=time.time())
+            self.log("erro", f"[{w.name}] {st['error']}")
+            return 0
+        units = sw["units"]
+        if not units:
+            st.update(state="erro", error="A loja não informou unidades de varredura", last_run=time.time())
+            return 0
+
+        cursor = sw["cursor"] % len(units)
+        unit = units[cursor]
+        offers: list[Offer] = []
+        alerts, err, avancar = 0, None, True
+        try:
+            offers = await col.sweep(unit, w)
+            alerts = (await self._process(w, col, offers))["alertas"]
+        except (CollectorError, httpx.TransportError) as e:
+            err, avancar = f"{unit}: {e}", False  # loja bloqueou ou sem internet: tenta a mesma unidade depois
+        except Exception as e:  # noqa: BLE001
+            err = f"{unit} pulada: {type(e).__name__}: {e}"  # ex.: categoria sumiu
+        if err:
+            self.log("erro", f"[{w.name}] {err}")
+
+        nxt, started = cursor, sw["cycle_started"]
+        if avancar:
+            nxt = cursor + 1
+            if nxt >= len(units):
+                self.log("info", f"[{w.name}] volta completa: {len(units)} unidade(s) em "
+                                 f"{round((time.time() - started) / 60)} min")
+                nxt, started = 0, time.time()
+            self.db.save_sweep_cursor(w.name, nxt, started)
+
+        gap = w.cycle_min * 60 / len(units)
+        st.update(state="erro" if err else "ok", error=err, last_run=time.time(), count=len(offers),
+                  duration=round(time.time() - t0, 2), unidade=nxt, total=len(units),
+                  fim_estimado=time.time() + (len(units) - nxt) * gap)
+        self.emit("watch", name=w.name, status=st)
+        return alerts
 
     async def _supervise(self, nome: str, factory) -> None:
         """Roda factory(); se cair com erro inesperado, registra e recria depois de restart_delay."""

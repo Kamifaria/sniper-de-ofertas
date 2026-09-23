@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS discards (
     price REAL, score INTEGER, reason TEXT, ts REAL
 );
 CREATE INDEX IF NOT EXISTS ix_discards_ts ON discards (ts);
+CREATE TABLE IF NOT EXISTS sweep_state (
+    watch TEXT PRIMARY KEY, units TEXT, units_ts REAL, cursor INTEGER DEFAULT 0, cycle_started REAL
+);
 """
 
 # Colunas novas em bancos criados por versões anteriores.
@@ -214,6 +217,29 @@ class Database:
     def list_blocked(self) -> list[dict]:
         return [dict(r) for r in self.conn.execute(
             "SELECT store,seller_id,nickname,block_reason,updated FROM sellers WHERE blocked=1 ORDER BY updated DESC")]
+
+    # ---------- varredura ----------
+    def get_sweep(self, watch: str) -> Optional[dict]:
+        r = self.conn.execute("SELECT * FROM sweep_state WHERE watch=?", (watch,)).fetchone()
+        if not r:
+            return None
+        d = dict(r)
+        d["units"] = json.loads(d["units"] or "[]")
+        return d
+
+    def save_sweep(self, watch: str, units: list[str], units_ts: float, cursor: int,
+                   cycle_started: float) -> None:
+        with self.lock, self.conn:
+            self.conn.execute(
+                """INSERT INTO sweep_state (watch,units,units_ts,cursor,cycle_started) VALUES (?,?,?,?,?)
+                   ON CONFLICT(watch) DO UPDATE SET units=excluded.units, units_ts=excluded.units_ts,
+                     cursor=excluded.cursor, cycle_started=excluded.cycle_started""",
+                (watch, json.dumps(units), units_ts, cursor, cycle_started))
+
+    def save_sweep_cursor(self, watch: str, cursor: int, cycle_started: float) -> None:
+        with self.lock, self.conn:
+            self.conn.execute("UPDATE sweep_state SET cursor=?, cycle_started=? WHERE watch=?",
+                              (cursor, cycle_started, watch))
 
     # ---------- descartes ----------
     def save_discard(self, o: Offer, score: int, reason: str) -> None:
