@@ -8,11 +8,13 @@ from collections import deque
 from collections import defaultdict
 
 from . import detector, filters
-from .collectors import Collector, CollectorError, MercadoLivreCollector
+from .collectors import Collector, CollectorError
 from .config import Settings
 from .db import Database
 from .models import Offer, SellerInfo, Verdict, Watch
 from .notify import TelegramNotifier, WindowsNotifier
+from .ratelimit import RateLimiter
+from .stores import LOJAS
 
 log = logging.getLogger("sniper.engine")
 
@@ -29,10 +31,20 @@ class Engine:
         self.paused = False
         self._tasks: list[asyncio.Task] = []
 
-        if settings.ml_client_id:
-            self.collectors["mercadolivre"] = MercadoLivreCollector(
-                settings.ml_client_id, settings.ml_client_secret,
-                settings.base_dir / "data" / "ml_token.json")
+        self.limiters: dict[str, RateLimiter] = {}
+        self.store_status: dict[str, dict] = {}
+        for chave, info in LOJAS.items():
+            lc = settings.lojas.get(chave)
+            if not lc or not lc.ativo:
+                continue
+            lim = RateLimiter(lc.por_minuto or info.por_minuto)
+            self.limiters[chave] = lim
+            col = info.criar(settings, lim)
+            if col is None:
+                self.store_status[chave] = {"configurada": False, "motivo": info.motivo_sem_config}
+                continue
+            self.collectors[chave] = col
+            self.store_status[chave] = {"configurada": True, "motivo": ""}
         if settings.telegram_on and settings.telegram_token:
             self.notifiers.append(TelegramNotifier(settings.telegram_token, settings.telegram_chat_id,
                                                    settings.telegram_min_score))
@@ -54,13 +66,21 @@ class Engine:
         getattr(log, level if level != "erro" else "error", log.info)(msg)
         self.emit("log", level=level, msg=msg)
 
+    def _motivo_sem_coletor(self, store: str) -> str:
+        info = LOJAS.get(store)
+        if info is None:
+            return f"Loja '{store}' não existe"
+        lc = self.s.lojas.get(store)
+        if lc is not None and not lc.ativo:
+            return f"Loja '{store}' desligada. Use [lojas.{store}] ativo = true no config.toml"
+        return info.motivo_sem_config
+
     # ---------- ciclo ----------
     async def start(self) -> None:
         for w in self.s.watches:
             if w.store not in self.collectors:
                 self.watch_status[w.name] = {"store": w.store, "state": "sem coletor",
-                                             "error": (f"Loja '{w.store}' não configurada. Preencha [{w.store}] no config.toml"
-                                                       + (" e rode python auth_ml.py" if w.store == "mercadolivre" else "")),
+                                             "error": self._motivo_sem_coletor(w.store),
                                              "count": 0, "interval": w.interval}
                 continue
             self.watch_status[w.name] = {"store": w.store, "state": "aguardando", "last_run": None,

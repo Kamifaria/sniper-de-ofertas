@@ -17,6 +17,7 @@ import httpx
 from datetime import datetime, timezone
 
 from ..models import Offer, SellerInfo, Watch
+from ..ratelimit import RateLimiter
 from .base import Collector, CollectorError
 
 log = logging.getLogger("sniper.ml")
@@ -98,30 +99,49 @@ def _to_offer(it: dict, watch: Watch) -> Optional[Offer]:
 class MercadoLivreCollector(Collector):
     store = "mercadolivre"
 
-    def __init__(self, client_id: str, client_secret: str, token_path: Path, max_concurrency: int = 4):
+    def __init__(self, client_id: str, client_secret: str, token_path: Path, max_concurrency: int = 4,
+                 limiter: Optional[RateLimiter] = None):
         self.tokens = TokenStore(token_path, client_id, client_secret)
         self.client = httpx.AsyncClient(timeout=15, headers={"user-agent": "sniper-ofertas/0.1"})
         self.sem = asyncio.Semaphore(max_concurrency)
+        self.limiter = limiter
+        self._sleep = asyncio.sleep  # trocado nos testes para não esperar de verdade
 
-    async def _get(self, path: str, params: dict | None = None) -> dict | list:
+    async def _get(self, path: str, params: dict | None = None, fila: str = "normal",
+                   timeout: float | None = None) -> dict | list:
         token = await self.tokens.access_token(self.client)
+        extra = {"timeout": timeout} if timeout else {}
+        status = None
         for attempt in range(4):
+            if self.limiter:
+                await self.limiter.acquire(fila)
             async with self.sem:
                 r = await self.client.get(f"{API}{path}", params=params,
-                                          headers={"Authorization": f"Bearer {token}"})
-            if r.status_code == 429 or r.status_code >= 500:
-                await asyncio.sleep(2 ** attempt)
+                                          headers={"Authorization": f"Bearer {token}"}, **extra)
+            status = r.status_code
+            if status == 429 or status >= 500:
+                await self._sleep(2 ** attempt)
                 continue
-            if r.status_code == 401:
+            if status == 401:
                 self.tokens.data["expires_at"] = 0
                 token = await self.tokens.access_token(self.client)
                 continue
-            if r.status_code == 403:
+            if status == 403:
+                self._penalize(f"ML recusou {path} (403)")
                 raise CollectorError(f"ML recusou {path} (403). Confira se o app tem permissão "
                                      f"para esse recurso. Resposta: {r.text[:160]}")
             r.raise_for_status()
+            if self.limiter:
+                self.limiter.success()
             return r.json()
+        if status == 429:
+            self._penalize("ML: muitas requisições (429)")
         raise CollectorError(f"ML não respondeu em {path} após várias tentativas")
+
+    def _penalize(self, motivo: str) -> None:
+        if self.limiter:
+            dur = self.limiter.penalize(motivo)
+            log.warning("Mercado Livre pausado por %d min: %s", dur // 60, motivo)
 
     async def search(self, watch: Watch) -> list[Offer]:
         offers: list[Offer] = []

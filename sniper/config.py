@@ -4,10 +4,18 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from .detector import DetectorConfig
 from .filters import FilterConfig
 from .models import Watch
+
+
+@dataclass
+class LojaConfig:
+    """Bloco [lojas.<chave>] do config.toml."""
+    ativo: bool = False
+    por_minuto: Optional[int] = None   # None = limite padrão da loja em sniper/stores.py
 
 
 @dataclass
@@ -29,6 +37,7 @@ class Settings:
     detector: DetectorConfig = field(default_factory=DetectorConfig)
     filters: FilterConfig = field(default_factory=FilterConfig)
     watches: list[Watch] = field(default_factory=list)
+    lojas: dict[str, LojaConfig] = field(default_factory=dict)
 
 
 def load(path: str | Path) -> Settings:
@@ -66,6 +75,14 @@ def load(path: str | Path) -> Settings:
             allow_used=bool(w.get("aceitar_usados", False)),
         ))
 
+    lojas: dict[str, LojaConfig] = {}
+    for chave, lc in raw.get("lojas", {}).items():
+        pm = lc.get("por_minuto")
+        lojas[str(chave)] = LojaConfig(ativo=bool(lc.get("ativo", True)),
+                                       por_minuto=int(pm) if pm is not None else None)
+    if "mercadolivre" not in lojas and ml.get("client_id"):
+        lojas["mercadolivre"] = LojaConfig(ativo=True)  # config antigo: só [mercadolivre]
+
     return Settings(
         base_dir=base,
         db_path=base / g.get("banco", "data/sniper.db"),
@@ -88,4 +105,5 @@ def load(path: str | Path) -> Settings:
         ),
         filters=fc,
         watches=watches,
+        lojas=lojas,
     )
