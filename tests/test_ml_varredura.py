@@ -102,6 +102,27 @@ class CategoriasTests(unittest.TestCase):
         self.assertFalse(lim.pausada)
         self.assertEqual(lim.degrau, 0)
 
+    def test_dump_503_cai_para_no_a_no(self):
+        def h(req):
+            p = req.url.path
+            if p == "/sites/MLB/categories":
+                return httpx.Response(200, json=RAIZES)
+            if p == "/sites/MLB/categories/all":
+                return httpx.Response(503)
+            if p.startswith("/categories/"):
+                return httpx.Response(200, json={"children_categories": NOS[p.rsplit("/", 1)[1]]})
+            return httpx.Response(404)
+
+        async def fn(c):
+            async def sem_espera(_):
+                return None
+            c._sleep = sem_espera
+            w = Watch(name="v", store="mercadolivre", kind="varrer")
+            return await c.sweep_units(w)
+
+        leaves = rodar(h, fn)
+        self.assertEqual(leaves, ["A1", "B"])
+
 
 class SweepRefreshTests(unittest.TestCase):
     def test_sweep_busca_do_mais_barato(self):

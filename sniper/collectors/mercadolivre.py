@@ -137,10 +137,9 @@ class MercadoLivreCollector(Collector):
             if self.limiter:
                 self.limiter.success()
             return r.json()
-        if status == 429:
-            if penalizar:
-                self._penalize("ML: muitas requisições (429)")
-            raise CollectorError(f"ML não respondeu em {path} após várias tentativas")
+        if status == 429 and penalizar:
+            self._penalize("ML: muitas requisições (429)")
+        raise CollectorError(f"ML não respondeu em {path} após várias tentativas")
 
     def _penalize(self, motivo: str) -> None:
         if self.limiter:

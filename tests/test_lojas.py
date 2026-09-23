@@ -127,6 +127,12 @@ class MLLimiteTests(unittest.TestCase):
             self.rodar(lambda req: httpx.Response(403, text="forbidden"), lim)
         self.assertTrue(lim.pausada)
 
+    def test_5xx_persistente_da_erro(self):
+        lim = RateLimiter(60)
+        with self.assertRaises(CollectorError):
+            self.rodar(lambda req: httpx.Response(503), lim)
+        self.assertFalse(lim.pausada)
+
     def test_sucesso_zera_degrau_e_conta_consulta(self):
         lim = RateLimiter(60)
         lim.degrau = 2
