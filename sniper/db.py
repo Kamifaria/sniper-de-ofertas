@@ -68,6 +68,7 @@ class Database:
                 if col not in have:
                     self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
         self.conn.execute("CREATE INDEX IF NOT EXISTS ix_items_catalog ON items (store, catalog_id)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS ix_items_price ON items (store, last_price)")
         # O modo demonstração foi removido: apaga o que a loja simulada deixou no banco.
         for table in ("prices", "items", "alerts", "discards", "sellers"):
             self.conn.execute(f"DELETE FROM {table} WHERE store='demo'")
@@ -183,6 +184,15 @@ class Database:
             (store, catalog_id, exclude_item, time.time() - max_age_h * 3600),
         ).fetchall()
         return [r[0] for r in rows if r[0] is not None]
+
+    # ---------- fila rápida ----------
+    def fast_lane_items(self, store: str, min_price: float, limit: int, max_age_s: float = 48 * 3600) -> list[str]:
+        """Itens caros vistos recentemente, do mais caro para o mais barato."""
+        rows = self.conn.execute(
+            "SELECT item_id FROM items WHERE store=? AND last_price>=? AND last_seen>=? "
+            "ORDER BY last_price DESC LIMIT ?",
+            (store, min_price, time.time() - max_age_s, limit)).fetchall()
+        return [r[0] for r in rows]
 
     # ---------- vendedores ----------
     def get_seller(self, store: str, seller_id: str) -> Optional[sqlite3.Row]:

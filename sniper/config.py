@@ -25,6 +25,9 @@ class Settings:
     port: int = 8765
     min_alert_score: int = 50
     cooldown_min: int = 30
+    valor_alto: float = 300.0        # fila rápida: itens a partir deste preço
+    intervalo_rapido: int = 120      # fila rápida: segundos entre voltas
+    max_itens_rapida: int = 1000     # fila rápida: teto de itens (os mais caros primeiro)
     ml_client_id: str = ""
     ml_client_secret: str = ""
     ml_redirect_uri: str = ""
@@ -50,6 +53,7 @@ def load(path: str | Path) -> Settings:
     tg = raw.get("telegram", {})
     win = raw.get("windows", {})
     f = raw.get("filtros", {})
+    vr = raw.get("varredura", {})
     fc = FilterConfig()
     fc.test_words += [str(x) for x in f.get("palavras_teste_extras", [])]
     fc.accessory_words += [str(x) for x in f.get("acessorios_extras", [])]
@@ -103,6 +107,9 @@ def load(path: str | Path) -> Settings:
         port=int(g.get("porta", 8765)),
         min_alert_score=int(g.get("nota_minima_alerta", 50)),
         cooldown_min=int(g.get("cooldown_minutos", 30)),
+        valor_alto=float(vr.get("valor_alto", 300)),
+        intervalo_rapido=int(vr.get("intervalo_rapido", 120)),
+        max_itens_rapida=int(vr.get("max_itens_rapida", 1000)),
         ml_client_id=str(ml.get("client_id", "")),
         ml_client_secret=str(ml.get("client_secret", "")),
         ml_redirect_uri=str(ml.get("redirect_uri", "")),

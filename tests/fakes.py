@@ -84,3 +84,17 @@ class FakeSweepCollector(FakeCollector):
             raise ValueError("categoria sumiu")
         self.seen.append(unit)
         return [oferta(f"{unit}-1", 100.0, title="Produto qualquer", catalog="")]
+
+
+class FakeRefreshCollector(FakeCollector):
+    """Loja com refresh: devolve os preços de `prices` (item_id → preço) para os ids pedidos."""
+    supports_refresh = True
+
+    def __init__(self, prices):
+        super().__init__()
+        self.prices = dict(prices)
+        self.pedidos: list[list[str]] = []
+
+    async def refresh(self, item_ids):
+        self.pedidos.append(list(item_ids))
+        return [oferta(i, self.prices[i], catalog="") for i in item_ids if i in self.prices]

@@ -22,6 +22,8 @@ log = logging.getLogger("sniper.engine")
 
 UNIDADES_TTL_S = 86400  # relê a lista de unidades de varredura (ex.: categorias) uma vez por dia
 
+FILA_RAPIDA = "Fila rápida"
+
 
 class Engine:
     def __init__(self, settings: Settings):
@@ -95,6 +97,11 @@ class Engine:
             loop = self._sweep_loop if w.kind == "varrer" else self._loop
             self._tasks.append(asyncio.create_task(
                 self._supervise(w.name, lambda w=w, loop=loop: loop(w))))
+        if any(c.supports_refresh for c in self.collectors.values()):
+            self.watch_status[FILA_RAPIDA] = {"store": "", "kind": "rapida", "state": "aguardando",
+                                              "count": 0, "error": None, "last_run": None,
+                                              "interval": self.s.intervalo_rapido}
+            self._tasks.append(asyncio.create_task(self._supervise(FILA_RAPIDA, self._fast_loop)))
         self._tasks.append(asyncio.create_task(self._housekeeping()))
         ativas = sum(1 for w in self.s.watches if w.store in self.collectors)
         self.log("info", f"Motor iniciado com {ativas} regra(s) ativa(s)")
@@ -186,6 +193,39 @@ class Engine:
                   duration=round(time.time() - t0, 2), unidade=nxt, total=len(units),
                   fim_estimado=time.time() + (len(units) - nxt) * gap)
         self.emit("watch", name=w.name, status=st)
+        return alerts
+
+    async def _fast_loop(self) -> None:
+        while True:
+            if not self.paused:
+                await self.fast_lane_step()
+            await asyncio.sleep(self.s.intervalo_rapido)
+
+    async def fast_lane_step(self) -> int:
+        """Relê em lote os itens caros de cada loja com refresh e passa pelo pipeline."""
+        st = self.watch_status.setdefault(FILA_RAPIDA, {"store": "", "kind": "rapida",
+                                                        "interval": self.s.intervalo_rapido})
+        st["state"] = "coletando"
+        t0 = time.time()
+        alerts, itens, erros = 0, 0, []
+        for store, col in list(self.collectors.items()):
+            if not col.supports_refresh:
+                continue
+            ids = self.db.fast_lane_items(store, self.s.valor_alto, self.s.max_itens_rapida)
+            if not ids:
+                continue
+            itens += len(ids)
+            try:
+                offers = await col.refresh(ids)
+            except Exception as e:  # noqa: BLE001
+                msg = str(e) if isinstance(e, CollectorError) else f"{type(e).__name__}: {e}"
+                erros.append(f"{store}: {msg}")
+                self.log("erro", f"[{FILA_RAPIDA}] {store}: {msg}")
+                continue
+            alerts += (await self._process(Watch(name=FILA_RAPIDA, store=store), col, offers))["alertas"]
+        st.update(state="erro" if erros else "ok", error="; ".join(erros) or None, count=itens,
+                  last_run=time.time(), duration=round(time.time() - t0, 2))
+        self.emit("watch", name=FILA_RAPIDA, status=st)
         return alerts
 
     async def _supervise(self, nome: str, factory) -> None:
