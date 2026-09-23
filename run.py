@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import socket
 import sys
 import threading
 import time
@@ -24,6 +25,27 @@ from sniper import config, winsys
 from sniper.server import create_app
 
 BASE = Path(__file__).parent
+
+
+def _ja_rodando(port: int) -> bool:
+    """True se já houver algo escutando em 127.0.0.1:<port> (outra instância do Sniper)."""
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def _abrir_janela_existente(url: str, navegador: bool) -> None:
+    if not navegador:
+        try:
+            import webview
+            webview.create_window("Sniper de Ofertas", url, width=1400, height=880, min_size=(900, 600))
+            webview.start()
+            return
+        except ImportError:
+            print("pywebview não instalado; abrindo no navegador.")
+    webbrowser.open(url)
 
 
 def main() -> None:
@@ -56,9 +78,17 @@ def main() -> None:
     if winsys.impedir_suspensao():
         logging.getLogger("sniper").info("Suspensão do Windows bloqueada enquanto o Sniper roda")
     settings = config.load(cfg_path)
-    app = create_app(settings)
     url = f"http://127.0.0.1:{settings.port}"
 
+    if _ja_rodando(settings.port):
+        if args.sem_janela:
+            print(f"O Sniper já está rodando em {url}")
+            return
+        print(f"O Sniper já está rodando em {url}; abrindo o painel.")
+        _abrir_janela_existente(url, args.navegador)
+        return
+
+    app = create_app(settings)
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=settings.port, log_level="warning"))
 
     if args.sem_janela:
@@ -69,6 +99,9 @@ def main() -> None:
     t = threading.Thread(target=server.run, daemon=True)
     t.start()
     while not server.started:
+        if not t.is_alive():
+            print(f"Não consegui iniciar o servidor na porta {settings.port}.")
+            sys.exit(1)
         time.sleep(0.1)
 
     if not args.navegador:
