@@ -31,6 +31,12 @@ acessorios_extras = []            # ex.: ["cabo", "carregador"]
 ativo = true
 # por_minuto = 60
 
+# Lojas VTEX (busca pública, sem login, "não oficial"): cea, tokstok, cobasi, paguemenos, americanas,
+# telhanorte, samsclub, drogariasaopaulo, pacheco, atacadao. Ligue com [lojas.<nome>] ativo = true
+# e crie um [[varrer]] com loja = "<nome>" (veja o exemplo mais abaixo).
+# [lojas.americanas]
+# ativo = true
+
 [mercadolivre]
 # Crie o app em https://developers.mercadolivre.com.br/devcenter
 client_id = ""

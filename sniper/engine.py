@@ -6,6 +6,7 @@ import logging
 import time
 from collections import deque
 from collections import defaultdict
+from statistics import median
 
 import httpx
 
@@ -385,12 +386,18 @@ class Engine:
             same = [p for iid, p in by_catalog.get(o.catalog_id, {}).items() if iid != o.item_id]
             return same if len(same) >= det.min_peers else self.db.peer_prices(o.store, o.catalog_id, o.item_id)
 
+        def simbolico(o: Offer, hist: list[float]) -> bool:
+            """Preço R$ 0,00/0,01 que a loja sempre mostrou (item sem preço), não um bug."""
+            return (col.precos_simbolicos and o.price <= det.free_threshold
+                    and (not hist or median(hist) <= det.free_threshold))
+
         discards = 0
         for o, reason in rejected:
             if reason.startswith("Vendedor bloqueado"):
                 continue  # loja já bloqueada: ignora em silêncio
-            v = detector.evaluate(o, self.db.history(o.store, o.item_id), w, det, peers_for(o))
-            if self._alert_worthy(v):  # só registra o que teria virado alerta
+            hist = self.db.history(o.store, o.item_id)
+            v = detector.evaluate(o, hist, w, det, peers_for(o))
+            if self._alert_worthy(v) and not simbolico(o, hist):  # só registra o que teria virado alerta
                 discards += self._discard(o, v.score, reason)
 
         candidates: list[tuple[Offer, Verdict, list[float], list[float]]] = []
@@ -399,7 +406,8 @@ class Engine:
             peers = peers_for(o)
             v = detector.evaluate(o, hist, w, det, peers)
             self.db.save_offer(o)
-            if self._alert_worthy(v) and self._should_alert(o.store, o.item_id, o.price):
+            if (self._alert_worthy(v) and not simbolico(o, hist)
+                    and self._should_alert(o.store, o.item_id, o.price)):
                 candidates.append((o, v, hist, peers))
 
         # 2ª passada, só nos candidatos: checa o vendedor e reconfirma o preço no anúncio.

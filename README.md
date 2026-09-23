@@ -2,7 +2,7 @@
 
 Caçador de bugs de preço para Windows, pensado para rodar 24 horas. Ele varre o catálogo das lojas, relê os itens caros com frequência, detecta preço fora do normal (erro de vírgula, item de graça, queda brusca) e avisa no painel, com notificação do Windows e no Telegram.
 
-Hoje a loja ligada é o **Mercado Livre** (API oficial). Steam, Epic, Nuuvem, lojas VTEX, Amazon e Shopee vêm nas próximas fases.
+Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`) e **10 lojas VTEX** pela busca pública, sem login: C&A, Tok&Stok, Cobasi, Pague Menos, Americanas, Telhanorte, Sam's Club, Drogaria São Paulo, Drogarias Pacheco e Atacadão. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. Steam, Epic, Nuuvem, Amazon e Shopee vêm nas próximas fases.
 
 ## Como rodar (Windows)
 
@@ -83,7 +83,7 @@ sniper/stores.py       registro de lojas (nome, oficial/não oficial, limite)
 sniper/engine.py       regras, varredura, fila rápida, saúde das lojas e alertas
 sniper/ratelimit.py    limite de consultas por loja e pausa por bloqueio
 sniper/detector.py     cálculo da nota
-sniper/collectors/     um coletor por loja (mercadolivre)
+sniper/collectors/     um coletor por plataforma (mercadolivre, vtex)
 sniper/db.py           SQLite: itens, histórico, alertas, estado da varredura
 sniper/notify.py       Telegram + notificação do Windows
 sniper/server.py       API local (127.0.0.1) + transmissão ao vivo
