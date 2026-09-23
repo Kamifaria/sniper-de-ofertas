@@ -75,6 +75,9 @@ def create_app(settings: Settings) -> Starlette:
     async def watches(_: Request):
         return JSONResponse(engine.watch_status)
 
+    async def lojas(_: Request):
+        return JSONResponse(engine.lojas_info())
+
     async def events(_: Request):
         return JSONResponse(list(engine.events))
 
@@ -125,6 +128,7 @@ def create_app(settings: Settings) -> Starlette:
         Route("/api/sellers/blocked", blocked),
         Route("/api/sellers/block", block, methods=["POST"]),
         Route("/api/watches", watches),
+        Route("/api/lojas", lojas),
         Route("/api/events", events),
         Route("/api/history/{store}/{item_id}", history),
         Route("/api/pause", pause, methods=["POST"]),

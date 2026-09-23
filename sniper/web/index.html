@@ -89,6 +89,10 @@ aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(-
 .modal h4{margin:0 0 10px;font-size:15px}
 .modal svg{width:100%;height:240px;display:block}
 .modal .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:8px}
+#lojas{max-height:28%}
+.tag{font:600 10px var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:middle}
+.tag.of{color:var(--accent);border-color:rgba(61,220,151,.4)}
+.tag.nof{color:var(--medio);border-color:rgba(245,213,71,.5)}
 @media (max-width:900px){main{grid-template-columns:1fr}aside{display:none}}
 </style>
 </head>
@@ -126,6 +130,8 @@ aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(-
     <div class="cards" id="cards"></div>
   </section>
   <aside>
+    <h3>Lojas</h3>
+    <div class="watches" id="lojas"></div>
     <h3>Regras de vigilância</h3>
     <div class="watches" id="watches"></div>
     <div class="tabs">
@@ -150,7 +156,8 @@ const brl = v => v == null ? "-" : v.toLocaleString("pt-BR", {style: "currency",
 const hhmm = ts => new Date(ts * 1000).toLocaleTimeString("pt-BR");
 const ago = ts => { const s = Math.round(Date.now()/1000 - ts); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)}min` : `${Math.round(s/3600)}h`; };
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const STORE = {mercadolivre: "Mercado Livre", shopee: "Shopee", shein: "Shein"};
+let LOJAS = {};
+const nomeLoja = k => (LOJAS[k] && LOJAS[k].nome) || k || "";
 
 async function api(path, body) {
   const r = await fetch(path, body ? {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)} : {});
@@ -161,10 +168,10 @@ function card(a, isNew) {
   const done = ["comprado", "ignorado", "loja_teste"].includes(a.status);
   const thumb = a.thumbnail ? `style="background-image:url('${esc(a.thumbnail)}')"` : "";
   return `<div class="card L-${a.level} ${isNew ? "new" : ""} ${done ? "done" : ""}" data-id="${a.id}">
-    <div class="thumb" ${thumb}>${a.thumbnail ? "" : esc((STORE[a.store]||a.store)[0])}</div>
+    <div class="thumb" ${thumb}>${a.thumbnail ? "" : esc(nomeLoja(a.store)[0] || "?")}</div>
     <div>
       <div class="title" data-hist="${a.id}">${esc(a.title)}</div>
-      <div class="meta"><span>${esc(STORE[a.store] || a.store)}</span>${a.seller_name ? `<span>🏪 ${esc(a.seller_name)}</span>` : ""}<span>${esc(a.watch)}</span><span>${hhmm(a.ts)} · há ${ago(a.ts)}</span>${a.free_shipping ? "<span>frete grátis</span>" : ""}${a.status !== "novo" ? `<span class="status-tag">● ${esc(a.status)}</span>` : ""}</div>
+      <div class="meta"><span>${esc(nomeLoja(a.store))}</span>${a.seller_name ? `<span>🏪 ${esc(a.seller_name)}</span>` : ""}<span>${esc(a.watch)}</span><span>${hhmm(a.ts)} · há ${ago(a.ts)}</span>${a.free_shipping ? "<span>frete grátis</span>" : ""}${a.status !== "novo" ? `<span class="status-tag">● ${esc(a.status)}</span>` : ""}</div>
       <div class="reasons">${a.reasons.map(r => `<span>${esc(r)}</span>`).join("")}</div>
     </div>
     <div class="right">
@@ -188,12 +195,39 @@ function render(newId) {
 
 function renderWatches(ws) {
   const html = Object.entries(ws).map(([name, w]) => {
-    const cls = w.state === "ok" ? "ok" : w.state === "erro" ? "erro" : w.state === "sem coletor" ? "sem" : "col";
+    const cls = w.state === "ok" ? "ok" : w.state === "erro" ? "erro"
+      : (w.state === "sem coletor" || w.state === "loja não suporta varredura") ? "sem" : "col";
+    const last = w.last_run ? ` · última há ${ago(w.last_run)}` : "";
+    let sub;
+    if (w.kind === "varrer") {
+      const prog = w.total ? `${(w.unidade ?? 0).toLocaleString("pt-BR")}/${w.total.toLocaleString("pt-BR")}` : "iniciando";
+      const fim = w.fim_estimado ? ` · volta termina em ~${Math.max(0, Math.round((w.fim_estimado - Date.now() / 1000) / 60))} min` : "";
+      sub = `${esc(nomeLoja(w.store))} · varredura ${prog}${fim}${last}`;
+    } else if (w.kind === "rapida") {
+      sub = `itens caros · ${w.count ?? 0} itens · a cada ${w.interval ?? "-"}s${last}`;
+    } else {
+      sub = `${esc(nomeLoja(w.store))} · ${w.count ?? 0} itens · a cada ${w.interval ?? "-"}s${last}${w.duration != null ? ` · ${w.duration}s` : ""}`;
+    }
     return `<div class="w"><div class="top"><b>${esc(name)}</b><span class="st ${cls}">${esc(w.state)}</span></div>
-      <div class="sub">${esc(STORE[w.store] || w.store)} · ${w.count ?? 0} itens · a cada ${w.interval ?? "-"}s${w.last_run ? ` · última há ${ago(w.last_run)}` : ""}${w.duration != null ? ` · ${w.duration}s` : ""}</div>
+      <div class="sub">${sub}</div>
       ${w.error ? `<div class="err">${esc(w.error)}</div>` : ""}</div>`;
   }).join("");
   $("#watches").innerHTML = html || `<div class="w sub">Nenhuma regra. Configure em config.toml.</div>`;
+}
+
+function renderLojas(list) {
+  LOJAS = Object.fromEntries(list.map(l => [l.chave, l]));
+  const html = list.filter(l => l.ativa).map(l => {
+    const lim = l.limite, pausa = lim && lim.pausada_ate;
+    const [cls, txt] = !l.configurada ? ["sem", "não configurada"]
+      : pausa ? ["erro", `pausada até ${hhmm(pausa).slice(0, 5)}`]
+      : l.erro ? ["erro", "com erro"] : ["ok", "ok"];
+    const det = !l.configurada ? l.motivo : pausa ? lim.motivo : l.erro;
+    return `<div class="w"><div class="top"><b>${esc(l.nome)}<span class="tag ${l.oficial ? "of" : "nof"}">${l.oficial ? "oficial" : "não oficial"}</span></b><span class="st ${cls}">${esc(txt)}</span></div>
+      ${lim ? `<div class="sub">${lim.ultimo_minuto}/${lim.limite} consultas no último minuto</div>` : ""}
+      ${det ? `<div class="err">${esc(det)}</div>` : ""}</div>`;
+  }).join("");
+  $("#lojas").innerHTML = html || `<div class="w sub">Nenhuma loja ligada. Use [lojas.mercadolivre] ativo = true no config.toml.</div>`;
 }
 
 function addLog(ev) {
@@ -321,17 +355,19 @@ async function loadDiscards() {
 async function loadBlocked() {
   const list = await api("/api/sellers/blocked");
   $("#blk").innerHTML = list.length ? list.map(b => `<div class="dc">
-    <div class="t">🏪 ${esc(b.nickname || b.seller_id)} <span class="m" style="display:inline">(${esc(STORE[b.store] || b.store)})</span></div>
+    <div class="t">🏪 ${esc(b.nickname || b.seller_id)} <span class="m" style="display:inline">(${esc(nomeLoja(b.store))})</span></div>
     <div class="m"><span>${esc(b.block_reason || "")}</span><button class="btn" data-unblock="${esc(b.store)}|${esc(b.seller_id)}">liberar</button></div>
   </div>`).join("") : `<div class="dc m">Nenhuma loja bloqueada. Use "🚫 Loja teste" em um alerta, ou deixe o filtro automático agir.</div>`;
 }
 
 (async () => {
+  renderLojas(await api("/api/lojas"));
   state.alerts = await api("/api/alerts?limit=200"); render();
   renderWatches(await api("/api/watches"));
   (await api("/api/events")).filter(e => e.type === "log").forEach(addLog);
   refreshStats(); setInterval(refreshStats, 5000);
   setInterval(() => api("/api/watches").then(renderWatches), 5000);
+  setInterval(() => api("/api/lojas").then(renderLojas), 5000);
   connect();
 })();
 </script>

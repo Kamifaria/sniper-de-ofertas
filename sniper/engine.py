@@ -86,6 +86,20 @@ class Engine:
             return f"Loja '{store}' desligada. Use [lojas.{store}] ativo = true no config.toml"
         return info.motivo_sem_config
 
+    def lojas_info(self) -> list[dict]:
+        out = []
+        for chave, info in LOJAS.items():
+            lc = self.s.lojas.get(chave)
+            st = self.store_status.get(chave, {})
+            lim = self.limiters.get(chave)
+            err = self.store_errors.get(chave)
+            out.append({"chave": chave, "nome": info.nome, "oficial": info.oficial,
+                        "ativa": bool(lc and lc.ativo), "configurada": st.get("configurada", False),
+                        "motivo": st.get("motivo") or (self._motivo_sem_coletor(chave) if not st else ""),
+                        "limite": lim.estado() if lim else None,
+                        "erro": err["msg"] if err else None})
+        return out
+
     # ---------- saúde das lojas ----------
     def _nome(self, store: str) -> str:
         info = LOJAS.get(store)
