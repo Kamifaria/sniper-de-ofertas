@@ -46,7 +46,10 @@ MIGRATIONS = {
     "items": {"catalog_id": "TEXT", "seller_id": "TEXT", "seller_name": "TEXT", "condition": "TEXT"},
     "alerts": {"seller_id": "TEXT", "seller_name": "TEXT", "confirmed": "INTEGER DEFAULT 0",
                "catalog_id": "TEXT"},
+    "prices": {"reads": "INTEGER DEFAULT 1"},
 }
+
+REGRAVAR_APOS_S = 6 * 3600  # mesmo preço: grava linha nova só depois disso (senão soma em `reads`)
 
 
 class Database:
@@ -70,12 +73,19 @@ class Database:
 
     # ---------- preços ----------
     def history(self, store: str, item_id: str, days: int = 30, limit: int = 500) -> list[float]:
+        """Leituras de preço, da mais antiga para a mais nova. Uma linha com `reads`=N conta como N leituras."""
         since = time.time() - days * 86400
         rows = self.conn.execute(
-            "SELECT price FROM prices WHERE store=? AND item_id=? AND ts>=? ORDER BY ts DESC LIMIT ?",
+            "SELECT price, COALESCE(reads, 1) AS reads FROM prices WHERE store=? AND item_id=? AND ts>=? "
+            "ORDER BY ts DESC, id DESC LIMIT ?",
             (store, item_id, since, limit),
         ).fetchall()
-        return [r["price"] for r in reversed(rows)]
+        out: list[float] = []
+        for r in rows:
+            out.extend([r["price"]] * min(r["reads"], limit - len(out)))
+            if len(out) >= limit:
+                break
+        return list(reversed(out))
 
     def history_points(self, store: str, item_id: str, days: int = 30) -> list[dict]:
         since = time.time() - days * 86400
@@ -87,10 +97,17 @@ class Database:
 
     def save_offer(self, o: Offer) -> None:
         with self.lock, self.conn:
-            self.conn.execute(
-                "INSERT INTO prices (store,item_id,price,original_price,ts) VALUES (?,?,?,?,?)",
-                (o.store, o.item_id, o.price, o.original_price, o.collected_at),
-            )
+            last = self.conn.execute(
+                "SELECT id, price, original_price, ts FROM prices WHERE store=? AND item_id=? "
+                "ORDER BY ts DESC, id DESC LIMIT 1", (o.store, o.item_id)).fetchone()
+            if (last is not None and last["price"] == o.price and last["original_price"] == o.original_price
+                    and o.collected_at - last["ts"] < REGRAVAR_APOS_S):
+                self.conn.execute("UPDATE prices SET reads = COALESCE(reads, 1) + 1 WHERE id=?", (last["id"],))
+            else:
+                self.conn.execute(
+                    "INSERT INTO prices (store,item_id,price,original_price,ts,reads) VALUES (?,?,?,?,?,1)",
+                    (o.store, o.item_id, o.price, o.original_price, o.collected_at),
+                )
             self.conn.execute(
                 """INSERT INTO items (store,item_id,title,url,thumbnail,category,watch,last_price,last_seen,
                      catalog_id,seller_id,seller_name,condition)
@@ -145,7 +162,7 @@ class Database:
         q = lambda sql, *a: self.conn.execute(sql, a).fetchone()[0]
         return {
             "itens": q("SELECT COUNT(*) FROM items"),
-            "leituras_24h": q("SELECT COUNT(*) FROM prices WHERE ts>=?", day),
+            "leituras_24h": q("SELECT COALESCE(SUM(COALESCE(reads, 1)), 0) FROM prices WHERE ts>=?", day),
             "alertas_24h": q("SELECT COUNT(*) FROM alerts WHERE ts>=?", day),
             "gratis_24h": q("SELECT COUNT(*) FROM alerts WHERE ts>=? AND level='GRATIS'", day),
             "criticos_24h": q("SELECT COUNT(*) FROM alerts WHERE ts>=? AND level='CRITICO'", day),
