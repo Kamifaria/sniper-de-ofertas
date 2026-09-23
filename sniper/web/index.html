@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sniper de Ofertas</title>
+<style>
+:root{
+  --bg:#0b0e13; --panel:#121720; --panel2:#171d28; --line:#232b38; --text:#e6ebf2; --muted:#8793a6;
+  --accent:#3ddc97; --gratis:#b18cff; --critico:#ff4d5e; --alto:#ff9f43; --medio:#f5d547; --link:#5aa9ff;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box} html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",system-ui,sans-serif;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;cursor:pointer}
+header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.logo{font-weight:800;letter-spacing:.14em;font-size:15px;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.logo svg{color:var(--accent)}
+.live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.live.on .dot{background:var(--accent);box-shadow:0 0 0 0 var(--accent);animation:pulse 1.6s infinite}
+.live.paused .dot{background:var(--alto)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.6)}100%{box-shadow:0 0 0 8px rgba(61,220,151,0)}}
+.stats{display:flex;gap:6px;margin-left:auto;overflow-x:auto;min-width:0}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:4px 10px;white-space:nowrap}
+.stat b{display:block;font:700 17px var(--mono)} .stat span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+header .btn{white-space:nowrap}
+.stat.g b{color:var(--gratis)} .stat.c b{color:var(--critico)}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 12px}
+.btn:hover{border-color:#34405a}
+.btn.primary{background:var(--accent);color:#06140d;border-color:var(--accent);font-weight:600}
+main{flex:1;display:grid;grid-template-columns:1fr 360px;min-height:0}
+.feed{overflow:auto;padding:16px 20px}
+.toolbar{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.chip{background:transparent;border:1px solid var(--line);border-radius:99px;padding:4px 12px;color:var(--muted);font-size:13px}
+.chip.on{color:var(--text);border-color:var(--text)}
+.toolbar .sep{flex:1}
+.cards{display:flex;flex-direction:column;gap:10px}
+.card{display:grid;grid-template-columns:72px 1fr auto;gap:14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--lvl,var(--line));border-radius:10px;padding:12px}
+.card.new{animation:flash 1.8s ease-out}
+@keyframes flash{0%{background:#1f2a3b}100%{background:var(--panel)}}
+.card.done{opacity:.5}
+.thumb{width:72px;height:72px;border-radius:8px;background:#fff center/contain no-repeat;display:grid;place-items:center;color:#667;font-weight:700}
+.title{font-weight:600;margin-bottom:4px;cursor:pointer}
+.title:hover{color:var(--link)}
+.meta{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+.reasons{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.reasons span{font-size:11.5px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 7px;color:#c3cbd8}
+.right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:170px}
+.price{font:700 22px var(--mono)}
+.ref{font:12px var(--mono);color:var(--muted);text-decoration:line-through}
+.badges{display:flex;gap:6px;align-items:center}
+.lvl{font:700 11px var(--mono);padding:2px 8px;border-radius:5px;background:var(--lvl);color:#0b0e13;letter-spacing:.04em}
+.score{font:700 12px var(--mono);color:var(--lvl)}
+.drop{font:700 12px var(--mono);color:var(--accent)}
+.actions{display:flex;gap:5px}
+.actions .btn{padding:4px 10px;font-size:12.5px}
+.L-GRATIS{--lvl:var(--gratis)} .L-CRITICO{--lvl:var(--critico)} .L-ALTO{--lvl:var(--alto)} .L-MEDIO{--lvl:var(--medio)}
+.status-tag{font-size:11px;color:var(--muted)}
+aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0;padding:14px 16px 8px}
+.watches{padding:0 12px 8px;display:flex;flex-direction:column;gap:6px;max-height:45%;overflow:auto}
+.w{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px}
+.w .top{display:flex;justify-content:space-between;gap:8px}
+.w b{font-weight:600}
+.w .st{font:11px var(--mono)} .st.ok{color:var(--accent)} .st.erro,.st.sem{color:var(--critico)} .st.col{color:var(--medio)}
+.w .err{color:#ff9aa4;font-size:11.5px;margin-top:4px;word-break:break-word}
+.w .sub{color:var(--muted);font-size:11.5px}
+.log{flex:1;overflow:auto;padding:0 16px 16px;font:12px/1.5 var(--mono)}
+.log div{padding:2px 0;border-bottom:1px dashed #1c2330;color:#aab4c3}
+.log .erro{color:#ff9aa4} .log time{color:#5d6a7e;margin-right:6px}
+.tabs{display:flex;gap:4px;padding:10px 12px 6px}
+.tabs button{background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.tabs button.on{color:var(--text);border-color:var(--text)}
+.tabs b{font:600 11px var(--mono);color:var(--alto);margin-left:4px}
+.panel{flex:1;overflow:auto;padding:0 12px 16px;display:none}
+.panel.on{display:block}
+.dc{border-bottom:1px dashed #1c2330;padding:6px 2px;font-size:12px}
+.dc .r{color:var(--alto);font-weight:600}
+.dc .t{color:#c3cbd8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc .m{color:var(--muted);font:11px var(--mono);display:flex;justify-content:space-between;gap:6px;align-items:center}
+.dc button{font-size:11px;padding:1px 8px}
+.ok-badge{font:600 11px var(--mono);color:var(--accent);border:1px solid rgba(61,220,151,.4);border-radius:5px;padding:1px 6px}
+.stat.d b{color:var(--alto)}
+.empty{color:var(--muted);text-align:center;padding:60px 20px;border:1px dashed var(--line);border-radius:10px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;place-items:center;z-index:9}
+.modal.on{display:grid}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;width:min(720px,92vw)}
+.modal h4{margin:0 0 10px;font-size:15px}
+.modal svg{width:100%;height:240px;display:block}
+.modal .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:8px}
+@media (max-width:900px){main{grid-template-columns:1fr}aside{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5"/></svg>
+    SNIPER DE OFERTAS
+  </div>
+  <div class="live" id="live"><span class="dot"></span><span id="liveTxt">conectando…</span></div>
+  <div class="stats">
+    <div class="stat"><b id="sItens">0</b><span>itens vigiados</span></div>
+    <div class="stat"><b id="sLeit">0</b><span>leituras 24h</span></div>
+    <div class="stat"><b id="sAl">0</b><span>alertas 24h</span></div>
+    <div class="stat c"><b id="sCrit">0</b><span>críticos 24h</span></div>
+    <div class="stat g"><b id="sGr">0</b><span>grátis 24h</span></div>
+    <div class="stat d"><b id="sDesc">0</b><span>descartados 24h</span></div>
+    <div class="stat"><b id="sBlk">0</b><span>lojas bloqueadas</span></div>
+    <div class="stat"><b id="sBuy">0</b><span>comprados</span></div>
+  </div>
+  <button class="btn" id="btnSom">🔔 Som ligado</button>
+  <button class="btn" id="btnPause">⏸ Pausar</button>
+</header>
+<main>
+  <section class="feed">
+    <div class="toolbar">
+      <button class="chip on" data-lvl="">Todos</button>
+      <button class="chip" data-lvl="GRATIS">🎁 Grátis</button>
+      <button class="chip" data-lvl="CRITICO">🚨 Crítico</button>
+      <button class="chip" data-lvl="ALTO">🔥 Alto</button>
+      <button class="chip" data-lvl="MEDIO">💡 Médio</button>
+      <span class="sep"></span>
+      <button class="chip" id="onlyNew">Só não vistos</button>
+    </div>
+    <div class="cards" id="cards"></div>
+  </section>
+  <aside>
+    <h3>Regras de vigilância</h3>
+    <div class="watches" id="watches"></div>
+    <div class="tabs">
+      <button class="on" data-tab="log">Atividade</button>
+      <button data-tab="desc">Descartados<b id="tDesc"></b></button>
+      <button data-tab="blk">Lojas bloqueadas<b id="tBlk"></b></button>
+    </div>
+    <div class="log panel on" id="log"></div>
+    <div class="panel" id="desc"></div>
+    <div class="panel" id="blk"></div>
+  </aside>
+</main>
+<div class="modal" id="modal"><div class="box">
+  <h4 id="mTitle"></h4><div id="mChart"></div>
+  <div class="foot"><span id="mInfo"></span><button class="btn" onclick="closeModal()">Fechar</button></div>
+</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = {alerts: [], lvl: "", onlyNew: false, sound: true, paused: false};
+const brl = v => v == null ? "-" : v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+const hhmm = ts => new Date(ts * 1000).toLocaleTimeString("pt-BR");
+const ago = ts => { const s = Math.round(Date.now()/1000 - ts); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)}min` : `${Math.round(s/3600)}h`; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const STORE = {mercadolivre: "Mercado Livre", shopee: "Shopee", shein: "Shein", demo: "Demo"};
+
+async function api(path, body) {
+  const r = await fetch(path, body ? {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)} : {});
+  return r.json();
+}
+
+function card(a, isNew) {
+  const done = ["comprado", "ignorado", "loja_teste"].includes(a.status);
+  const thumb = a.thumbnail ? `style="background-image:url('${esc(a.thumbnail)}')"` : "";
+  return `<div class="card L-${a.level} ${isNew ? "new" : ""} ${done ? "done" : ""}" data-id="${a.id}">
+    <div class="thumb" ${thumb}>${a.thumbnail ? "" : esc((STORE[a.store]||a.store)[0])}</div>
+    <div>
+      <div class="title" data-hist="${a.id}">${esc(a.title)}</div>
+      <div class="meta"><span>${esc(STORE[a.store] || a.store)}</span>${a.seller_name ? `<span>🏪 ${esc(a.seller_name)}</span>` : ""}<span>${esc(a.watch)}</span><span>${hhmm(a.ts)} · há ${ago(a.ts)}</span>${a.free_shipping ? "<span>frete grátis</span>" : ""}${a.status !== "novo" ? `<span class="status-tag">● ${esc(a.status)}</span>` : ""}</div>
+      <div class="reasons">${a.reasons.map(r => `<span>${esc(r)}</span>`).join("")}</div>
+    </div>
+    <div class="right">
+      <div class="badges">${a.confirmed ? '<span class="ok-badge" title="Preço relido direto no anúncio antes do alerta">✓ confirmado</span>' : ""}<span class="lvl">${a.level}</span><span class="score">${a.score}/100</span></div>
+      <div class="price">${brl(a.price)}</div>
+      <div>${a.ref_price ? `<span class="ref">${brl(a.ref_price)}</span>` : ""} ${a.drop_pct ? `<span class="drop">-${Math.round(a.drop_pct*100)}%</span>` : ""}</div>
+      <div class="actions">
+        <button class="btn primary" data-open="${a.id}">Abrir oferta</button>
+        <button class="btn" data-st="comprado" data-id="${a.id}">Comprei</button>
+        <button class="btn" data-st="ignorado" data-id="${a.id}">Ignorar</button>
+        ${a.seller_id ? `<button class="btn" data-st="loja_teste" data-id="${a.id}" title="Bloqueia esta loja: nunca mais lê anúncios dela">🚫 Loja teste</button>` : ""}
+      </div>
+    </div></div>`;
+}
+
+function render(newId) {
+  const list = state.alerts.filter(a => (!state.lvl || a.level === state.lvl) && (!state.onlyNew || a.status === "novo"));
+  $("#cards").innerHTML = list.length ? list.map(a => card(a, a.id === newId)).join("")
+    : `<div class="empty">Nenhum alerta ainda. O motor está vigiando — assim que um preço sair do normal, ele aparece aqui.</div>`;
+}
+
+function renderWatches(ws) {
+  const html = Object.entries(ws).map(([name, w]) => {
+    const cls = w.state === "ok" ? "ok" : w.state === "erro" ? "erro" : w.state === "sem coletor" ? "sem" : "col";
+    return `<div class="w"><div class="top"><b>${esc(name)}</b><span class="st ${cls}">${esc(w.state)}</span></div>
+      <div class="sub">${esc(STORE[w.store] || w.store)} · ${w.count ?? 0} itens · a cada ${w.interval ?? "-"}s${w.last_run ? ` · última há ${ago(w.last_run)}` : ""}${w.duration != null ? ` · ${w.duration}s` : ""}</div>
+      ${w.error ? `<div class="err">${esc(w.error)}</div>` : ""}</div>`;
+  }).join("");
+  $("#watches").innerHTML = html || `<div class="w sub">Nenhuma regra. Configure em config.toml.</div>`;
+}
+
+function addLog(ev) {
+  const d = document.createElement("div");
+  d.className = ev.level === "erro" ? "erro" : "";
+  d.innerHTML = `<time>${hhmm(ev.ts)}</time>${esc(ev.msg)}`;
+  $("#log").prepend(d);
+  while ($("#log").children.length > 200) $("#log").lastChild.remove();
+}
+
+async function refreshStats() {
+  const s = await api("/api/stats");
+  $("#sItens").textContent = s.itens; $("#sLeit").textContent = s.leituras_24h.toLocaleString("pt-BR");
+  $("#sAl").textContent = s.alertas_24h; $("#sCrit").textContent = s.criticos_24h;
+  $("#sGr").textContent = s.gratis_24h; $("#sBuy").textContent = s.comprados;
+  $("#sDesc").textContent = s.descartados_24h; $("#sBlk").textContent = s.lojas_bloqueadas;
+  $("#tDesc").textContent = s.descartados_24h || ""; $("#tBlk").textContent = s.lojas_bloqueadas || "";
+  state.paused = s.pausado; updateLive();
+}
+
+function updateLive(connected = true) {
+  const el = $("#live");
+  el.className = "live " + (!connected ? "" : state.paused ? "paused" : "on");
+  $("#liveTxt").textContent = !connected ? "reconectando…" : state.paused ? "pausado" : "ao vivo";
+  $("#btnPause").textContent = state.paused ? "▶ Retomar" : "⏸ Pausar";
+}
+
+// Som: bipes diferentes por nível
+let actx;
+function beep(level) {
+  if (!state.sound) return;
+  try {
+    actx = actx || new AudioContext();
+    const seq = level === "GRATIS" ? [880, 1175, 1568, 1175, 1568] : level === "CRITICO" ? [988, 740, 988, 740] : [660];
+    seq.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = f; o.type = "square"; g.gain.value = .06;
+      o.connect(g); g.connect(actx.destination);
+      const t = actx.currentTime + i * .14; o.start(t); o.stop(t + .11);
+    });
+  } catch (e) {}
+}
+
+function connect() {
+  const es = new EventSource("/api/stream");
+  es.onopen = () => updateLive(true);
+  es.onerror = () => updateLive(false);
+  es.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === "alert") {
+      state.alerts.unshift(ev.alert); state.alerts = state.alerts.slice(0, 300);
+      render(ev.alert.id);
+      if (ev.alert.level !== "MEDIO") beep(ev.alert.level);
+      document.title = `(${state.alerts.filter(a => a.status === "novo").length}) Sniper de Ofertas`;
+    } else if (ev.type === "log") addLog(ev);
+    else if (ev.type === "discard") loadDiscards();
+    else if (ev.type === "watch") api("/api/watches").then(renderWatches);
+  };
+}
+
+// Histórico em SVG
+async function showHistory(a) {
+  const pts = await api(`/api/history/${encodeURIComponent(a.store)}/${encodeURIComponent(a.item_id)}`);
+  $("#mTitle").textContent = a.title;
+  if (pts.length < 2) { $("#mChart").innerHTML = `<div class="empty">Pouco histórico ainda.</div>`; }
+  else {
+    const W = 680, H = 240, P = 36;
+    const xs = pts.map(p => p.ts), ys = pts.map(p => p.price);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = 0, y1 = Math.max(...ys) * 1.1;
+    const X = t => P + (t - x0) / (x1 - x0 || 1) * (W - P - 8), Y = v => H - 22 - (v - y0) / (y1 - y0 || 1) * (H - 34);
+    const path = pts.map((p, i) => `${i ? "L" : "M"}${X(p.ts).toFixed(1)},${Y(p.price).toFixed(1)}`).join("");
+    const grid = [0, .25, .5, .75, 1].map(f => { const v = y0 + f * (y1 - y0); return `<line x1="${P}" x2="${W-8}" y1="${Y(v)}" y2="${Y(v)}" stroke="#232b38"/><text x="${P-4}" y="${Y(v)+4}" fill="#8793a6" font-size="10" text-anchor="end">${Math.round(v)}</text>`; }).join("");
+    const alertDot = `<circle cx="${X(a.ts)}" cy="${Y(a.price)}" r="5" fill="none" stroke="var(--critico)" stroke-width="2"/>`;
+    $("#mChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}">${grid}<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2"/>${alertDot}</svg>`;
+  }
+  const min = Math.min(...pts.map(p => p.price)), max = Math.max(...pts.map(p => p.price));
+  $("#mInfo").textContent = `${pts.length} leituras · mín ${brl(min)} · máx ${brl(max)}`;
+  $("#modal").classList.add("on");
+}
+function closeModal() { $("#modal").classList.remove("on"); }
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button, .title") || e.target;
+  if (t.dataset.lvl !== undefined && t.classList.contains("chip")) {
+    document.querySelectorAll("[data-lvl]").forEach(c => c.classList.toggle("on", c === t));
+    state.lvl = t.dataset.lvl; render();
+  } else if (t.id === "onlyNew") { state.onlyNew = !state.onlyNew; t.classList.toggle("on", state.onlyNew); render(); }
+  else if (t.dataset.open) {
+    const a = state.alerts.find(x => x.id == t.dataset.open);
+    await api("/api/open", {url: a.url});
+    if (a.status === "novo") { a.status = "visto"; api(`/api/alerts/${a.id}/status`, {status: "visto"}); render(); }
+  } else if (t.dataset.st) {
+    const a = state.alerts.find(x => x.id == t.dataset.id);
+    a.status = t.dataset.st; await api(`/api/alerts/${a.id}/status`, {status: a.status});
+    if (a.status === "loja_teste") state.alerts.filter(x => x.seller_id === a.seller_id && x.store === a.store).forEach(x => x.status = "loja_teste");
+    render(); refreshStats(); if (a.status === "loja_teste") loadBlocked();
+  } else if (t.dataset.hist) { showHistory(state.alerts.find(x => x.id == t.dataset.hist)); }
+  else if (t.id === "modal") closeModal();
+  else if (t.dataset.tab) {
+    document.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle("on", b === t));
+    document.querySelectorAll(".panel").forEach(p => p.classList.toggle("on", p.id === t.dataset.tab));
+    if (t.dataset.tab === "desc") loadDiscards(); if (t.dataset.tab === "blk") loadBlocked();
+  } else if (t.dataset.unblock) {
+    const [store, seller_id] = t.dataset.unblock.split("|");
+    await api("/api/sellers/block", {store, seller_id, blocked: false}); loadBlocked(); refreshStats();
+  } else if (t.dataset.blockDisc) {
+    const [store, seller_id, nickname] = t.dataset.blockDisc.split("|");
+    await api("/api/sellers/block", {store, seller_id, nickname, reason: "marcada por você como loja de teste"});
+    loadBlocked(); refreshStats(); t.remove();
+  } else if (t.dataset.openUrl) { api("/api/open", {url: t.dataset.openUrl}); }
+});
+$("#btnSom").onclick = () => { state.sound = !state.sound; $("#btnSom").textContent = state.sound ? "🔔 Som ligado" : "🔕 Som desligado"; if (state.sound) beep("MEDIO"); };
+$("#btnPause").onclick = async () => { const r = await api("/api/pause", {paused: !state.paused}); state.paused = r.pausado; updateLive(); };
+
+async function loadDiscards() {
+  const list = await api("/api/discards?limit=150");
+  $("#desc").innerHTML = list.length ? list.map(d => `<div class="dc">
+    <div class="r">${esc(d.reason)}</div>
+    <div class="t" title="${esc(d.title)}">${esc(d.title)}</div>
+    <div class="m"><span>${brl(d.price)} · nota ${d.score} · ${d.seller_name ? "🏪 " + esc(d.seller_name) + " · " : ""}${hhmm(d.ts)}</span>
+      <span>${d.url.startsWith("https://") ? `<button class="btn" data-open-url="${esc(d.url)}">ver</button>` : ""}
+      ${d.seller_id && !d.seller_blocked ? `<button class="btn" data-block-disc="${esc(d.store)}|${esc(d.seller_id)}|${esc(d.seller_name || "")}">bloquear loja</button>` : ""}</span></div>
+  </div>`).join("") : `<div class="dc m">Nada descartado ainda. Aqui aparece o que ia virar alerta mas era loja de teste, anúncio lixo ou preço já corrigido.</div>`;
+}
+async function loadBlocked() {
+  const list = await api("/api/sellers/blocked");
+  $("#blk").innerHTML = list.length ? list.map(b => `<div class="dc">
+    <div class="t">🏪 ${esc(b.nickname || b.seller_id)} <span class="m" style="display:inline">(${esc(STORE[b.store] || b.store)})</span></div>
+    <div class="m"><span>${esc(b.block_reason || "")}</span><button class="btn" data-unblock="${esc(b.store)}|${esc(b.seller_id)}">liberar</button></div>
+  </div>`).join("") : `<div class="dc m">Nenhuma loja bloqueada. Use "🚫 Loja teste" em um alerta, ou deixe o filtro automático agir.</div>`;
+}
+
+(async () => {
+  state.alerts = await api("/api/alerts?limit=200"); render();
+  renderWatches(await api("/api/watches"));
+  (await api("/api/events")).filter(e => e.type === "log").forEach(addLog);
+  refreshStats(); setInterval(refreshStats, 5000);
+  setInterval(() => api("/api/watches").then(renderWatches), 5000);
+  connect();
+})();
+</script>
+</body>
+</html>

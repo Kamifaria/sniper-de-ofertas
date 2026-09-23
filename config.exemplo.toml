@@ -1,0 +1,83 @@
+# ==========================================================
+#  Sniper de Ofertas — configuração
+#  Copie este arquivo para config.toml e edite.
+# ==========================================================
+
+[geral]
+porta = 8765
+banco = "data/sniper.db"
+nota_minima_alerta = 50      # abaixo disso nem aparece no painel
+cooldown_minutos = 30        # não repete alerta do mesmo item nesse tempo (a não ser que caia mais)
+
+[detector]
+preco_gratis = 1.00          # até esse valor conta como "de graça"
+historico_minimo = 3         # leituras antes de confiar na mediana
+concorrentes_minimos = 2     # outros vendedores do mesmo produto para comparar preço
+
+# ---------- Filtros: o que NÃO vale seu tempo ----------
+[filtros]
+min_vendas_vendedor = 10          # loja com menos vendas que isso = provável loja de teste
+min_dias_conta_vendedor = 30      # conta criada há menos dias que isso = provável teste
+excluir_usados = true
+exigir_termos_da_busca = true     # "iphone 15" não aceita "iPhone 13"
+reconfirmar_preco = true          # relê o anúncio antes de alertar (descarta preço já corrigido)
+palavras_teste_extras = []        # ex.: ["demonstração", "mostruário"]
+acessorios_extras = []            # ex.: ["cabo", "carregador"]
+
+# ---------- Lojas ----------
+[mercadolivre]
+# Crie o app em https://developers.mercadolivre.com.br/devcenter
+client_id = ""
+client_secret = ""
+redirect_uri = "https://www.google.com"
+
+# ---------- Alertas ----------
+[telegram]
+ativo = false
+bot_token = ""               # crie com o @BotFather
+chat_id = ""                 # seu id (use o @userinfobot)
+nota_minima = 70
+
+[windows]
+notificacao = true
+nota_minima = 70
+
+# Modo demonstração: loja simulada com "bugs" aleatórios, para testar o painel.
+# Desligue quando o Mercado Livre estiver configurado.
+[demo]
+ativo = true
+intervalo = 5
+
+# ---------- O que vigiar ----------
+# loja: "mercadolivre"
+# busca: termo de busca | categoria: id da categoria do ML (ex.: MLB1055 = celulares)
+# itens: lista de IDs de anúncios específicos (ex.: ["MLB123456789"])
+# intervalo: segundos entre coletas | piso: preço abaixo disso é suspeito
+# paginas: páginas de 50 resultados | preco_minimo: ignora itens que normalmente custam menos que isso
+# excluir: palavras extras só desta regra | aceitar_usados: true para aceitar usados nesta regra
+
+[[vigiar]]
+nome = "iPhones"
+loja = "mercadolivre"
+busca = "iphone 15"
+intervalo = 90
+piso = 2500
+paginas = 2
+preco_minimo = 1500
+
+[[vigiar]]
+nome = "Consoles"
+loja = "mercadolivre"
+busca = "playstation 5"
+intervalo = 120
+piso = 1800
+preco_minimo = 1000
+excluir = ["controle avulso", "jogo", "midia fisica"]
+
+[[vigiar]]
+nome = "Notebooks"
+loja = "mercadolivre"
+categoria = "MLB1652"
+intervalo = 180
+paginas = 2
+preco_minimo = 1500
