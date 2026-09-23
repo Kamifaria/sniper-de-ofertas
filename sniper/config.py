@@ -101,11 +101,17 @@ def load(path: str | Path) -> Settings:
 
     for v in raw.get("varrer", []):
         cats = v.get("categorias", "todas")
+        if cats == "todas":
+            sweep_categories = None
+        elif isinstance(cats, str):
+            sweep_categories = [cats]
+        else:
+            sweep_categories = [str(c) for c in cats]
         watches.append(Watch(
             name=v["nome"],
             store=v.get("loja", "mercadolivre"),
             kind="varrer",
-            sweep_categories=None if cats == "todas" else [str(c) for c in cats],
+            sweep_categories=sweep_categories,
             cycle_min=int(v.get("ciclo_minutos", 60)),
             max_pages=int(v.get("paginas", 1)),
             min_price=v.get("preco_minimo"),

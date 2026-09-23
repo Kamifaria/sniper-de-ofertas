@@ -95,6 +95,13 @@ class ConfigVarrerTests(unittest.TestCase):
             ("Eletro", "varrer", ["MLB1000", "MLB5726"], 60, 1),
         ])
 
+    def test_categoria_unica_como_texto(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.toml"
+            p.write_text('[[varrer]]\nnome = "Unica"\ncategorias = "MLB1051"\n', encoding="utf-8")
+            ws = config.load(p).watches
+        self.assertEqual(ws[0].sweep_categories, ["MLB1051"])
+
 
 if __name__ == "__main__":
     unittest.main()
