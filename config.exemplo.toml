@@ -42,12 +42,6 @@ nota_minima = 70
 notificacao = true
 nota_minima = 70
 
-# Modo demonstração: loja simulada com "bugs" aleatórios, para testar o painel.
-# Desligue quando o Mercado Livre estiver configurado.
-[demo]
-ativo = true
-intervalo = 5
-
 # ---------- O que vigiar ----------
 # loja: "mercadolivre"
 # busca: termo de busca | categoria: id da categoria do ML (ex.: MLB1055 = celulares)

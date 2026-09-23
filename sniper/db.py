@@ -62,6 +62,9 @@ class Database:
                 if col not in have:
                     self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
         self.conn.execute("CREATE INDEX IF NOT EXISTS ix_items_catalog ON items (store, catalog_id)")
+        # O modo demonstração foi removido: apaga o que a loja simulada deixou no banco.
+        for table in ("prices", "items", "alerts", "discards", "sellers"):
+            self.conn.execute(f"DELETE FROM {table} WHERE store='demo'")
         self.conn.commit()
         self.lock = threading.Lock()
 

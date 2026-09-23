@@ -8,7 +8,7 @@ Monitor de preços em tempo real para Windows. Ele vigia o Mercado Livre pela AP
 2. Dê dois cliques em **`iniciar.bat`**.
    - Na primeira vez, ele cria o ambiente e instala as dependências (1–2 min).
    - Ele copia `config.exemplo.toml` para `config.toml`.
-3. O painel abre em uma janela própria. Vem com o **modo demonstração** ligado: uma loja simulada que gera "bugs" de vez em quando, para você ver tudo funcionando.
+3. O painel abre em uma janela própria. Sem loja configurada ele fica vazio: siga "Ligar o Mercado Livre de verdade" abaixo.
 
 Outras formas de abrir: `iniciar.bat --navegador` (abre no Chrome/Edge) ou `iniciar.bat --sem-janela` (painel em http://127.0.0.1:8765).
 
@@ -24,7 +24,6 @@ Outras formas de abrir: `iniciar.bat --navegador` (abre no Chrome/Edge) ou `inic
    python auth_ml.py
    ```
    Autorize no navegador, copie a URL para onde você foi mandado e cole no terminal. O token fica em `data/ml_token.json` e é renovado automaticamente.
-4. Em `[demo]`, mude para `ativo = false` e reinicie.
 
 ## Telegram (alerta no celular)
 
@@ -66,7 +65,7 @@ run.py                 inicia motor + API + janela
 auth_ml.py             autorização OAuth do Mercado Livre (uma vez)
 sniper/engine.py       agenda as regras, avalia e dispara alertas
 sniper/detector.py     cálculo da nota
-sniper/collectors/     um coletor por loja (mercadolivre, demo)
+sniper/collectors/     um coletor por loja (mercadolivre)
 sniper/db.py           SQLite: itens, histórico, alertas
 sniper/notify.py       Telegram + notificação do Windows
 sniper/server.py       API local (127.0.0.1) + transmissão ao vivo

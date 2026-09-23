@@ -9,7 +9,7 @@ from typing import Optional
 @dataclass
 class Offer:
     """Uma leitura de preço de um item em uma loja."""
-    store: str                      # "mercadolivre", "shopee", "shein", "demo"
+    store: str                      # chave da loja em sniper/stores.py (ex.: "mercadolivre")
     item_id: str
     title: str
     price: float

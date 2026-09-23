@@ -8,7 +8,7 @@ from collections import deque
 from collections import defaultdict
 
 from . import detector, filters
-from .collectors import Collector, CollectorError, DemoCollector, MercadoLivreCollector
+from .collectors import Collector, CollectorError, MercadoLivreCollector
 from .config import Settings
 from .db import Database
 from .models import Offer, SellerInfo, Verdict, Watch
@@ -33,8 +33,6 @@ class Engine:
             self.collectors["mercadolivre"] = MercadoLivreCollector(
                 settings.ml_client_id, settings.ml_client_secret,
                 settings.base_dir / "data" / "ml_token.json")
-        if settings.demo_on:
-            self.collectors["demo"] = DemoCollector()
         if settings.telegram_on and settings.telegram_token:
             self.notifiers.append(TelegramNotifier(settings.telegram_token, settings.telegram_chat_id,
                                                    settings.telegram_min_score))

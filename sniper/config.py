@@ -26,7 +26,6 @@ class Settings:
     telegram_min_score: int = 70
     windows_on: bool = True
     windows_min_score: int = 70
-    demo_on: bool = False
     detector: DetectorConfig = field(default_factory=DetectorConfig)
     filters: FilterConfig = field(default_factory=FilterConfig)
     watches: list[Watch] = field(default_factory=list)
@@ -41,7 +40,6 @@ def load(path: str | Path) -> Settings:
     ml = raw.get("mercadolivre", {})
     tg = raw.get("telegram", {})
     win = raw.get("windows", {})
-    demo = raw.get("demo", {})
     f = raw.get("filtros", {})
     fc = FilterConfig()
     fc.test_words += [str(x) for x in f.get("palavras_teste_extras", [])]
@@ -67,8 +65,6 @@ def load(path: str | Path) -> Settings:
             exclude_words=[str(x) for x in w.get("excluir", [])],
             allow_used=bool(w.get("aceitar_usados", False)),
         ))
-    if demo.get("ativo"):
-        watches.append(Watch(name="Demonstração", store="demo", interval=int(demo.get("intervalo", 5))))
 
     return Settings(
         base_dir=base,
@@ -85,7 +81,6 @@ def load(path: str | Path) -> Settings:
         telegram_min_score=int(tg.get("nota_minima", 70)),
         windows_on=bool(win.get("notificacao", True)),
         windows_min_score=int(win.get("nota_minima", 70)),
-        demo_on=bool(demo.get("ativo", False)),
         detector=DetectorConfig(
             free_threshold=float(d.get("preco_gratis", 1.0)),
             min_history=int(d.get("historico_minimo", 3)),
