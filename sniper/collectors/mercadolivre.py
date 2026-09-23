@@ -98,6 +98,8 @@ def _to_offer(it: dict, watch: Watch) -> Optional[Offer]:
 
 class MercadoLivreCollector(Collector):
     store = "mercadolivre"
+    supports_sweep = True
+    supports_refresh = True
 
     def __init__(self, client_id: str, client_secret: str, token_path: Path, max_concurrency: int = 4,
                  limiter: Optional[RateLimiter] = None):
@@ -143,33 +145,39 @@ class MercadoLivreCollector(Collector):
             dur = self.limiter.penalize(motivo)
             log.warning("Mercado Livre pausado por %d min: %s", dur // 60, motivo)
 
-    async def search(self, watch: Watch) -> list[Offer]:
+    async def _search_pages(self, params: dict, watch: Watch, fila: str = "normal") -> list[Offer]:
         offers: list[Offer] = []
         for page in range(max(1, watch.max_pages)):
-            params = {"limit": 50, "offset": page * 50}
-            if watch.query:
-                params["q"] = watch.query
-            if watch.category:
-                params["category"] = watch.category
-            data = await self._get(f"/sites/{SITE}/search", params)
+            data = await self._get(f"/sites/{SITE}/search", {**params, "limit": 50, "offset": page * 50},
+                                   fila=fila)
             results = data.get("results", [])
             offers += [o for o in (_to_offer(it, watch) for it in results) if o]
             if len(results) < 50:
                 break
         return offers
 
-    async def items(self, watch: Watch) -> list[Offer]:
+    async def search(self, watch: Watch) -> list[Offer]:
+        params = {}
+        if watch.query:
+            params["q"] = watch.query
+        if watch.category:
+            params["category"] = watch.category
+        return await self._search_pages(params, watch)
+
+    async def _items(self, ids: list[str], watch: Watch, fila: str = "normal") -> list[Offer]:
         offers: list[Offer] = []
-        ids = watch.item_ids
         for i in range(0, len(ids), 20):
-            chunk = ",".join(ids[i:i + 20])
-            data = await self._get("/items", {"ids": chunk, "attributes": ITEM_FIELDS})
+            data = await self._get("/items", {"ids": ",".join(ids[i:i + 20]), "attributes": ITEM_FIELDS},
+                                   fila=fila)
             for entry in data:
                 if entry.get("code") == 200:
                     o = _to_offer(entry.get("body", {}), watch)
                     if o:
                         offers.append(o)
         return offers
+
+    async def items(self, watch: Watch) -> list[Offer]:
+        return await self._items(watch.item_ids, watch)
 
     async def collect(self, watch: Watch) -> list[Offer]:
         out: list[Offer] = []
@@ -178,6 +186,45 @@ class MercadoLivreCollector(Collector):
         if watch.query or watch.category:
             out += await self.search(watch)
         return out
+
+    # ---------- varredura ----------
+    async def _category_dump(self) -> dict[str, list[str]]:
+        """Árvore inteira em uma chamada. Se falhar, devolve {} e sweep_units lê nó a nó."""
+        try:
+            data = await self._get(f"/sites/{SITE}/categories/all", timeout=120)
+        except (CollectorError, httpx.HTTPError, ValueError) as e:
+            log.warning("Dump de categorias do ML indisponível (%s); lendo a árvore nó a nó", e)
+            return {}
+        return {cid: [c["id"] for c in (node.get("children_categories") or [])] for cid, node in data.items()}
+
+    async def sweep_units(self, watch: Watch) -> list[str]:
+        """Categorias finais (sem filhas) do MLB, ou das categorias escolhidas na regra."""
+        roots = watch.sweep_categories or [c["id"] for c in await self._get(f"/sites/{SITE}/categories")]
+        tree = await self._category_dump()
+        leaves: list[str] = []
+        stack, seen = list(reversed(roots)), set()
+        while stack:
+            cid = stack.pop()
+            if cid in seen:
+                continue
+            seen.add(cid)
+            if cid in tree:
+                kids = tree[cid]
+            else:
+                node = await self._get(f"/categories/{cid}")
+                kids = [c["id"] for c in (node.get("children_categories") or [])]
+            if kids:
+                stack.extend(reversed(kids))
+            else:
+                leaves.append(cid)
+        return leaves
+
+    async def sweep(self, unit: str, watch: Watch) -> list[Offer]:
+        # Do mais barato para o mais caro: um preço com bug aparece no topo da categoria.
+        return await self._search_pages({"category": unit, "sort": "price_asc"}, watch)
+
+    async def refresh(self, item_ids: list[str]) -> list[Offer]:
+        return await self._items(item_ids, Watch(name="Fila rápida", store=self.store), fila="rapida")
 
     async def seller_info(self, offer: Offer) -> Optional[SellerInfo]:
         if not offer.seller_id:
