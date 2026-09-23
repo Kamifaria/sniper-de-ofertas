@@ -37,12 +37,13 @@ class TelegramNotifier:
     async def send(self, alert: dict) -> None:
         if alert["score"] < self.min_score:
             return
+        await self.send_text(format_text(alert))
+
+    async def send_text(self, text: str) -> None:
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
         try:
-            r = await self.client.post(url, json={
-                "chat_id": self.chat_id, "text": format_text(alert),
-                "disable_web_page_preview": False,
-            })
+            r = await self.client.post(url, json={"chat_id": self.chat_id, "text": text,
+                                                  "disable_web_page_preview": False})
             if r.status_code != 200:
                 log.warning("Telegram respondeu %s: %s", r.status_code, r.text[:200])
         except httpx.HTTPError as e:

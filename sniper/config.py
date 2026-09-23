@@ -35,6 +35,8 @@ class Settings:
     telegram_token: str = ""
     telegram_chat_id: str = ""
     telegram_min_score: int = 70
+    telegram_resumo: str = "09:00"   # horário do resumo diário; "" desliga
+    telegram_travada_min: int = 30   # avisa se uma loja ficar esse tempo com erro ou pausada
     windows_on: bool = True
     windows_min_score: int = 70
     detector: DetectorConfig = field(default_factory=DetectorConfig)
@@ -117,6 +119,8 @@ def load(path: str | Path) -> Settings:
         telegram_token=str(tg.get("bot_token", "")),
         telegram_chat_id=str(tg.get("chat_id", "")),
         telegram_min_score=int(tg.get("nota_minima", 70)),
+        telegram_resumo=str(tg.get("resumo_diario", "09:00")),
+        telegram_travada_min=int(tg.get("avisar_travada_minutos", 30)),
         windows_on=bool(win.get("notificacao", True)),
         windows_min_score=int(win.get("nota_minima", 70)),
         detector=DetectorConfig(

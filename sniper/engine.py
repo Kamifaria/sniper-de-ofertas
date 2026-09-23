@@ -58,6 +58,10 @@ class Engine:
         if settings.windows_on:
             self.notifiers.append(WindowsNotifier(settings.windows_min_score))
 
+        self.store_errors: dict[str, dict] = {}   # loja → {"desde", "avisado", "msg"}
+        # Se já passou do horário do resumo hoje, o primeiro resumo sai amanhã.
+        self._last_summary = self._summary_due_day(time.time())
+
     # ---------- eventos para o painel ----------
     def emit(self, kind: str, **data) -> None:
         ev = {"type": kind, "ts": time.time(), **data}
@@ -82,6 +86,66 @@ class Engine:
             return f"Loja '{store}' desligada. Use [lojas.{store}] ativo = true no config.toml"
         return info.motivo_sem_config
 
+    # ---------- saúde das lojas ----------
+    def _nome(self, store: str) -> str:
+        info = LOJAS.get(store)
+        return info.nome if info else store
+
+    def _store_fail(self, store: str, msg: str, now: float | None = None) -> None:
+        e = self.store_errors.setdefault(store, {"desde": now or time.time(), "avisado": False})
+        e["msg"] = msg
+
+    async def _store_ok(self, store: str) -> None:
+        e = self.store_errors.pop(store, None)
+        if e and e["avisado"]:
+            await self._notify_text(f"✅ {self._nome(store)} voltou a funcionar.")
+
+    async def _notify_text(self, text: str) -> None:
+        for n in self.notifiers:
+            if hasattr(n, "send_text"):
+                await n.send_text(text)
+
+    def _summary_due_day(self, now: float) -> str | None:
+        """Data (AAAA-MM-DD) se já passou do horário do resumo nesse dia; None se não passou ou está desligado."""
+        if not self.s.telegram_resumo:
+            return None
+        hh, mm = (int(x) for x in self.s.telegram_resumo.split(":"))
+        lt = time.localtime(now)
+        return time.strftime("%Y-%m-%d", lt) if (lt.tm_hour, lt.tm_min) >= (hh, mm) else None
+
+    def _summary_text(self) -> str:
+        s = self.db.stats()
+        prob = "; ".join(f"{self._nome(k)} ({v['msg']})" for k, v in self.store_errors.items()) or "nenhuma"
+        leituras = f"{s['leituras_24h']:,}".replace(",", ".")
+        return ("📊 Sniper de Ofertas: últimas 24 h\n"
+                f"Leituras: {leituras}\n"
+                f"Alertas: {s['alertas_24h']} (críticos: {s['criticos_24h']}, grátis: {s['gratis_24h']})\n"
+                f"Descartados: {s['descartados_24h']}\n"
+                f"Lojas com problema: {prob}")
+
+    async def health_check(self, now: float | None = None) -> None:
+        now = now or time.time()
+        for store, lim in self.limiters.items():
+            est = lim.estado()
+            if est["pausada_ate"]:
+                ate = time.strftime("%H:%M", time.localtime(est["pausada_ate"]))
+                self._store_fail(store, f"pausada por bloqueio até {ate} ({est['motivo']})", now)
+        limite = self.s.telegram_travada_min * 60
+        for store, e in self.store_errors.items():
+            if not e["avisado"] and now - e["desde"] >= limite:
+                e["avisado"] = True
+                await self._notify_text(f"⚠️ {self._nome(store)} com problema há "
+                                        f"{round((now - e['desde']) / 60)} min: {e['msg']}")
+        day = self._summary_due_day(now)
+        if day and day != self._last_summary:
+            self._last_summary = day
+            await self._notify_text(self._summary_text())
+
+    async def _health_loop(self) -> None:
+        while True:
+            await asyncio.sleep(60)
+            await self.health_check()
+
     # ---------- ciclo ----------
     async def start(self) -> None:
         for w in self.s.watches:
@@ -102,6 +166,7 @@ class Engine:
                                               "count": 0, "error": None, "last_run": None,
                                               "interval": self.s.intervalo_rapido}
             self._tasks.append(asyncio.create_task(self._supervise(FILA_RAPIDA, self._fast_loop)))
+        self._tasks.append(asyncio.create_task(self._supervise("saúde", self._health_loop)))
         self._tasks.append(asyncio.create_task(self._housekeeping()))
         ativas = sum(1 for w in self.s.watches if w.store in self.collectors)
         self.log("info", f"Motor iniciado com {ativas} regra(s) ativa(s)")
@@ -159,6 +224,7 @@ class Engine:
             msg = str(e) if isinstance(e, CollectorError) else f"{type(e).__name__}: {e}"
             st.update(state="erro", error=f"Não consegui listar as unidades: {msg}", last_run=time.time())
             self.log("erro", f"[{w.name}] {st['error']}")
+            self._store_fail(w.store, st["error"])
             return 0
         units = sw["units"]
         if not units:
@@ -178,6 +244,10 @@ class Engine:
             err = f"{unit} pulada: {type(e).__name__}: {e}"  # ex.: categoria sumiu
         if err:
             self.log("erro", f"[{w.name}] {err}")
+        if err and not avancar:
+            self._store_fail(w.store, err)
+        else:
+            await self._store_ok(w.store)
 
         nxt, started = cursor, sw["cycle_started"]
         if avancar:
@@ -221,8 +291,10 @@ class Engine:
                 msg = str(e) if isinstance(e, CollectorError) else f"{type(e).__name__}: {e}"
                 erros.append(f"{store}: {msg}")
                 self.log("erro", f"[{FILA_RAPIDA}] {store}: {msg}")
+                self._store_fail(store, msg)
                 continue
             alerts += (await self._process(Watch(name=FILA_RAPIDA, store=store), col, offers))["alertas"]
+            await self._store_ok(store)
         st.update(state="erro" if erros else "ok", error="; ".join(erros) or None, count=itens,
                   last_run=time.time(), duration=round(time.time() - t0, 2))
         self.emit("watch", name=FILA_RAPIDA, status=st)
@@ -257,13 +329,16 @@ class Engine:
         except CollectorError as e:
             st.update(state="erro", error=str(e), last_run=time.time())
             self.log("erro", f"[{w.name}] {e}")
+            self._store_fail(w.store, st["error"])
             return 0
         except Exception as e:  # noqa: BLE001
             st.update(state="erro", error=f"{type(e).__name__}: {e}", last_run=time.time())
             self.log("erro", f"[{w.name}] falha inesperada: {e}")
+            self._store_fail(w.store, st["error"])
             return 0
 
         r = await self._process(w, col, offers)
+        await self._store_ok(w.store)
         st.update(state="ok", error=None, last_run=time.time(), count=len(offers),
                   duration=round(time.time() - t0, 2), descartados=r["rejeitados"])
         self.emit("watch", name=w.name, status=st)

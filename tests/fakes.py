@@ -98,3 +98,16 @@ class FakeRefreshCollector(FakeCollector):
     async def refresh(self, item_ids):
         self.pedidos.append(list(item_ids))
         return [oferta(i, self.prices[i], catalog="") for i in item_ids if i in self.prices]
+
+
+class NotificadorFalso:
+    """Guarda as mensagens de texto em vez de mandar para o Telegram."""
+
+    def __init__(self):
+        self.textos: list[str] = []
+
+    async def send(self, alert):
+        pass
+
+    async def send_text(self, text):
+        self.textos.append(text)
