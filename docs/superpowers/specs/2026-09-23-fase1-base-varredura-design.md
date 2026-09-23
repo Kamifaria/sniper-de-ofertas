@@ -106,7 +106,7 @@ async def refresh(self, item_ids: list[str]) -> list[Offer]     # relê itens em
 
 ### Mercado Livre
 
-- `sweep_units`: árvore de `/sites/MLB/categories` + `/categories/{id}` até as folhas (`children_categories` vazio), com cache em `sweep_state`. Se `categorias` for uma lista, usa as folhas dessas categorias.
+- `sweep_units`: raízes de `/sites/MLB/categories` (ou as de `categorias`) descendo até as folhas (`children_categories` vazio), com cache em `sweep_state`. A árvore vem de uma chamada só ao dump `/sites/MLB/categories/all`. Se o dump falhar, cada nó é lido em `/categories/{id}`, o que dá milhares de chamadas na primeira carga.
 - `sweep(unit)`: `/sites/MLB/search?category={unit}&sort=price_asc&limit=50`, com `paginas` páginas. A ordem do mais barato primeiro põe os bugs no topo.
 - `refresh(ids)`: `/items?ids=` em lotes de 20 (reaproveita o `items()` atual).
 - **Risco a verificar no início da implementação:** confirmar que o app do ML tem acesso a `/sites/MLB/search` com `sort=price_asc` por categoria e ao endpoint de categorias. Se não tiver, parar e reavaliar antes de seguir.
@@ -126,7 +126,11 @@ async def refresh(self, item_ids: list[str]) -> list[Offer]     # relê itens em
 
 ## 6. Crescimento do banco
 
-`Database.save_offer` só insere em `prices` se o preço (ou `original_price`) mudou em relação à última linha do item **ou** se a última linha tem mais de 6 horas. `items` é atualizado sempre (`last_price`, `last_seen`). A mediana do histórico continua válida, porque os pontos repetidos só davam mais peso ao mesmo valor. Isso é compensado pelo registro periódico a cada 6 horas.
+`prices` ganha a coluna `reads INTEGER DEFAULT 1`. `Database.save_offer` só insere uma linha nova em `prices` se o preço (ou `original_price`) mudou em relação à última linha do item **ou** se a última linha tem mais de 6 horas. Nos outros casos, soma 1 em `reads` da última linha. `items` é atualizado sempre (`last_price`, `last_seen`).
+
+`Database.history` expande cada linha em `reads` leituras, respeitando o `limit`. Assim, o detector vê exatamente as mesmas leituras de antes: a mediana e o `historico_minimo` não mudam, e o banco guarda uma linha por mudança de preço. `stats()["leituras_24h"]` passa a somar `reads`.
+
+> Ajuste feito ao escrever o plano: a regra "só insere se mudou" sozinha faria um item estável levar 18 h para juntar 3 leituras e piorava a detecção. O contador resolve isso.
 
 ## 7. Operação 24 horas
 
