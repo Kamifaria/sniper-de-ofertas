@@ -110,7 +110,7 @@ class MercadoLivreCollector(Collector):
         self._sleep = asyncio.sleep  # trocado nos testes para não esperar de verdade
 
     async def _get(self, path: str, params: dict | None = None, fila: str = "normal",
-                   timeout: float | None = None) -> dict | list:
+                   timeout: float | None = None, penalizar: bool = True) -> dict | list:
         token = await self.tokens.access_token(self.client)
         extra = {"timeout": timeout} if timeout else {}
         status = None
@@ -129,7 +129,8 @@ class MercadoLivreCollector(Collector):
                 token = await self.tokens.access_token(self.client)
                 continue
             if status == 403:
-                self._penalize(f"ML recusou {path} (403)")
+                if penalizar:
+                    self._penalize(f"ML recusou {path} (403)")
                 raise CollectorError(f"ML recusou {path} (403). Confira se o app tem permissão "
                                      f"para esse recurso. Resposta: {r.text[:160]}")
             r.raise_for_status()
@@ -137,8 +138,9 @@ class MercadoLivreCollector(Collector):
                 self.limiter.success()
             return r.json()
         if status == 429:
-            self._penalize("ML: muitas requisições (429)")
-        raise CollectorError(f"ML não respondeu em {path} após várias tentativas")
+            if penalizar:
+                self._penalize("ML: muitas requisições (429)")
+            raise CollectorError(f"ML não respondeu em {path} após várias tentativas")
 
     def _penalize(self, motivo: str) -> None:
         if self.limiter:
@@ -191,7 +193,7 @@ class MercadoLivreCollector(Collector):
     async def _category_dump(self) -> dict[str, list[str]]:
         """Árvore inteira em uma chamada. Se falhar, devolve {} e sweep_units lê nó a nó."""
         try:
-            data = await self._get(f"/sites/{SITE}/categories/all", timeout=120)
+            data = await self._get(f"/sites/{SITE}/categories/all", timeout=120, penalizar=False)
         except (CollectorError, httpx.HTTPError, ValueError) as e:
             log.warning("Dump de categorias do ML indisponível (%s); lendo a árvore nó a nó", e)
             return {}

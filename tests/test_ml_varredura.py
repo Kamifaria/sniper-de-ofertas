@@ -84,6 +84,24 @@ class CategoriasTests(unittest.TestCase):
         self.assertEqual(rodar(h, lambda c: c.sweep_units(w)), ["A1", "A2"])
         self.assertNotIn("/sites/MLB/categories", calls)
 
+    def test_dump_403_nao_pausa_a_loja(self):
+        def h(req):
+            p = req.url.path
+            if p == "/sites/MLB/categories":
+                return httpx.Response(200, json=RAIZES)
+            if p == "/sites/MLB/categories/all":
+                return httpx.Response(403)
+            if p.startswith("/categories/"):
+                return httpx.Response(200, json={"children_categories": NOS[p.rsplit("/", 1)[1]]})
+            return httpx.Response(404)
+
+        lim = RateLimiter(60)
+        w = Watch(name="v", store="mercadolivre", kind="varrer")
+        leaves = rodar(h, lambda c: c.sweep_units(w), limiter=lim)
+        self.assertEqual(leaves, ["A1", "B"])
+        self.assertFalse(lim.pausada)
+        self.assertEqual(lim.degrau, 0)
+
 
 class SweepRefreshTests(unittest.TestCase):
     def test_sweep_busca_do_mais_barato(self):
