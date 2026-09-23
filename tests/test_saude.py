@@ -103,6 +103,22 @@ class ResumoTests(unittest.TestCase):
             s = config.load(p)
         self.assertEqual((s.telegram_resumo, s.telegram_travada_min), ("08:30", 10))
 
+    def test_config_resumo_invalido_da_erro_claro(self):
+        for valor in ("9h", "25:00", "09:60", "09"):
+            with tempfile.TemporaryDirectory() as d:
+                p = Path(d) / "config.toml"
+                p.write_text(f'[telegram]\nresumo_diario = "{valor}"\n', encoding="utf-8")
+                with self.assertRaises(ValueError) as ctx:
+                    config.load(p)
+                self.assertIn("resumo_diario", str(ctx.exception))
+
+    def test_config_resumo_aceita_hora_de_um_digito(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.toml"
+            p.write_text('[telegram]\nresumo_diario = "9:05"\n', encoding="utf-8")
+            s = config.load(p)
+        self.assertEqual(s.telegram_resumo, "09:05")
+
 
 if __name__ == "__main__":
     unittest.main()

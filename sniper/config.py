@@ -45,6 +45,24 @@ class Settings:
     lojas: dict[str, LojaConfig] = field(default_factory=dict)
 
 
+def _valida_horario(texto: str) -> str:
+    """Valida `resumo_diario`: "" (desligado) ou "HH:MM" (H com 1 ou 2 dígitos, M com 2)."""
+    if texto == "":
+        return ""
+    partes = texto.split(":")
+    erro = ValueError(f'[telegram] resumo_diario inválido: "{texto}". '
+                       'Use "HH:MM" (ex.: "09:00") ou "" para desligar.')
+    if len(partes) != 2:
+        raise erro
+    hh, mm = partes
+    if not (1 <= len(hh) <= 2) or not hh.isdigit() or len(mm) != 2 or not mm.isdigit():
+        raise erro
+    h, m = int(hh), int(mm)
+    if not (0 <= h <= 23) or not (0 <= m <= 59):
+        raise erro
+    return f"{h:02d}:{m:02d}"
+
+
 def load(path: str | Path) -> Settings:
     path = Path(path).resolve()
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -119,7 +137,7 @@ def load(path: str | Path) -> Settings:
         telegram_token=str(tg.get("bot_token", "")),
         telegram_chat_id=str(tg.get("chat_id", "")),
         telegram_min_score=int(tg.get("nota_minima", 70)),
-        telegram_resumo=str(tg.get("resumo_diario", "09:00")),
+        telegram_resumo=_valida_horario(str(tg.get("resumo_diario", "09:00"))),
         telegram_travada_min=int(tg.get("avisar_travada_minutos", 30)),
         windows_on=bool(win.get("notificacao", True)),
         windows_min_score=int(win.get("nota_minima", 70)),
