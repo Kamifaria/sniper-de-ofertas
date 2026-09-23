@@ -25,6 +25,12 @@ palavras_teste_extras = []        # ex.: ["demonstração", "mostruário"]
 acessorios_extras = []            # ex.: ["cabo", "carregador"]
 
 # ---------- Lojas ----------
+# Cada loja tem um bloco [lojas.<nome>]. ativo = true liga; por_minuto é opcional (limite de consultas).
+# No painel, "oficial" = API oficial da loja; "não oficial" = endpoint público que pode mudar sem aviso.
+[lojas.mercadolivre]
+ativo = true
+# por_minuto = 60
+
 [mercadolivre]
 # Crie o app em https://developers.mercadolivre.com.br/devcenter
 client_id = ""
@@ -37,10 +43,29 @@ ativo = false
 bot_token = ""               # crie com o @BotFather
 chat_id = ""                 # seu id (use o @userinfobot)
 nota_minima = 70
+resumo_diario = "09:00"      # resumo das últimas 24 h; "" desliga
+avisar_travada_minutos = 30  # avisa se uma loja ficar esse tempo com erro ou bloqueada
 
 [windows]
 notificacao = true
 nota_minima = 70
+
+# ---------- Varredura (caça a bugs em todo o catálogo) ----------
+[varredura]
+valor_alto = 300             # itens a partir deste preço entram na fila rápida
+intervalo_rapido = 120       # segundos entre releituras da fila rápida
+max_itens_rapida = 1000      # teto da fila rápida (os mais caros primeiro)
+
+# Cada [[varrer]] percorre o catálogo da loja em rodízio, do mais barato para o mais caro.
+# categorias: "todas" ou lista de ids (ex.: ["MLB1000", "MLB5726"])
+# ciclo_minutos: tempo desejado para uma volta completa (o limite de consultas pode deixar mais lento)
+#
+# [[varrer]]
+# nome = "ML geral"
+# loja = "mercadolivre"
+# categorias = "todas"
+# ciclo_minutos = 60
+# paginas = 1
 
 # ---------- O que vigiar ----------
 # loja: "mercadolivre"

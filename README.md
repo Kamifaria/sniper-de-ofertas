@@ -1,6 +1,8 @@
-# Sniper de Ofertas — Fase 1
+# Sniper de Ofertas
 
-Monitor de preços em tempo real para Windows. Ele vigia o Mercado Livre pela API oficial, detecta preço fora do normal (erro de vírgula, item de graça, queda brusca) e avisa no painel, com notificação do Windows e no Telegram.
+Caçador de bugs de preço para Windows, pensado para rodar 24 horas. Ele varre o catálogo das lojas, relê os itens caros com frequência, detecta preço fora do normal (erro de vírgula, item de graça, queda brusca) e avisa no painel, com notificação do Windows e no Telegram.
+
+Hoje a loja ligada é o **Mercado Livre** (API oficial). Steam, Epic, Nuuvem, lojas VTEX, Amazon e Shopee vêm nas próximas fases.
 
 ## Como rodar (Windows)
 
@@ -24,6 +26,7 @@ Outras formas de abrir: `iniciar.bat --navegador` (abre no Chrome/Edge) ou `inic
    python auth_ml.py
    ```
    Autorize no navegador, copie a URL para onde você foi mandado e cole no terminal. O token fica em `data/ml_token.json` e é renovado automaticamente.
+4. Confira que o `config.toml` tem `[lojas.mercadolivre]` com `ativo = true` (configs antigos, só com `[mercadolivre]` preenchido, já ligam a loja).
 
 ## Telegram (alerta no celular)
 
@@ -45,6 +48,19 @@ Cada bloco `[[vigiar]]` no `config.toml` é uma regra:
 | `preco_minimo` | ignora itens que normalmente custam menos (capinhas, cabos) |
 | `paginas` | páginas de 50 resultados por busca |
 
+## Varredura e fila rápida
+
+- **`[[varrer]]`** percorre o catálogo da loja em rodízio (no ML, cada categoria final, do mais barato para o mais caro). Se o PC reiniciar, ele continua de onde parou.
+- **Fila rápida:** todo item visto nas últimas 48 h com preço ≥ `valor_alto` é relido a cada `intervalo_rapido` segundos.
+- **Limite por loja:** cada loja tem um teto de consultas por minuto. Se a loja bloquear (429/403), só ela pausa por 1, 5, 15 e depois 60 min. O painel mostra o motivo.
+
+## Rodar 24 horas
+
+- Enquanto o Sniper está aberto, o Windows não entra em suspensão (o monitor ainda desliga).
+- `iniciar.bat --instalar-inicio` faz o Sniper abrir sozinho, minimizado, quando o Windows iniciar. `iniciar.bat --remover-inicio` desfaz.
+- Com o Telegram ligado, chega um aviso se uma loja ficar mais de 30 min com problema e um resumo diário às 9h.
+- O log fica em `data/sniper.log` (até 5 arquivos de 5 MB).
+
 ## Como a nota (0–100) é calculada
 
 | sinal | pontos |
@@ -61,20 +77,24 @@ Níveis: **CRÍTICO** ≥ 90 · **ALTO** ≥ 70 · **MÉDIO** ≥ 50. Item sem h
 ## Estrutura
 
 ```
-run.py                 inicia motor + API + janela
+run.py                 inicia motor + API + janela (--instalar-inicio / --remover-inicio)
 auth_ml.py             autorização OAuth do Mercado Livre (uma vez)
-sniper/engine.py       agenda as regras, avalia e dispara alertas
+sniper/stores.py       registro de lojas (nome, oficial/não oficial, limite)
+sniper/engine.py       regras, varredura, fila rápida, saúde das lojas e alertas
+sniper/ratelimit.py    limite de consultas por loja e pausa por bloqueio
 sniper/detector.py     cálculo da nota
 sniper/collectors/     um coletor por loja (mercadolivre)
-sniper/db.py           SQLite: itens, histórico, alertas
+sniper/db.py           SQLite: itens, histórico, alertas, estado da varredura
 sniper/notify.py       Telegram + notificação do Windows
 sniper/server.py       API local (127.0.0.1) + transmissão ao vivo
+sniper/winsys.py       sem suspensão e início com o Windows
 sniper/web/index.html  painel
 tests/                 python -m unittest discover tests
 ```
 
 ## Próximas fases
 
-- **Fase 2:** executor assistido (abre no seu Chrome logado, põe no carrinho, aplica cupom e para no botão de pagar) + travas de valor e limite por dia.
-- **Fase 3:** Shopee (API de afiliados), monitor de grupos do Telegram e Pelando/Promobit, motor de cupons e cashback.
-- **Fase 4:** arbitragem (lucro de revenda estimado) e aprendizado de quais lojas cancelam pedido.
+- **Fase 2:** jogos (Steam, Epic, IsThereAnyDeal com Nuuvem) e comparação de preço entre lojas de jogos.
+- **Fase 3:** coletor VTEX genérico (Carrefour, Renner, Leroy Merlin e outras) e comparação por código de barras.
+- **Fase 4:** Amazon e Shopee pelas APIs de afiliados.
+- Depois: executor assistido de compra e aprendizado de quais lojas cancelam pedido.
