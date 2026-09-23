@@ -145,7 +145,7 @@ class Engine:
                 ate = time.strftime("%H:%M", time.localtime(est["pausada_ate"]))
                 self._store_fail(store, f"pausada por bloqueio até {ate} ({est['motivo']})", now)
         limite = self.s.telegram_travada_min * 60
-        for store, e in self.store_errors.items():
+        for store, e in list(self.store_errors.items()):
             if not e["avisado"] and now - e["desde"] >= limite:
                 e["avisado"] = True
                 await self._notify_text(f"⚠️ {self._nome(store)} com problema há "

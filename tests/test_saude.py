@@ -46,6 +46,27 @@ class TravadaTests(unittest.TestCase):
             asyncio.run(m.engine._store_ok("t"))
             self.assertEqual(n.textos, [])
 
+    def test_notificador_que_muda_store_errors_nao_derruba_health_check(self):
+        with MotorDeTeste(telegram_resumo="") as m:
+            eng = m.engine
+
+            class NotificadorTraiçoeiro:
+                def __init__(self, eng):
+                    self.eng = eng
+                    self.textos = []
+
+                async def send_text(self, text):
+                    self.textos.append(text)
+                    self.eng._store_fail("outra", "x")
+
+            n = NotificadorTraiçoeiro(eng)
+            eng.notifiers = [n]
+            t0 = time.time()
+            eng._store_fail("t", "sem internet", now=t0)
+            asyncio.run(eng.health_check(now=t0 + 31 * 60))
+            self.assertEqual(len(n.textos), 1)
+            self.assertIn("sem internet", n.textos[0])
+
     def test_loja_pausada_conta_como_problema(self):
         with MotorDeTeste(telegram_resumo="") as m:
             lim = RateLimiter(60)
