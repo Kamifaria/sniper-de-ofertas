@@ -32,6 +32,9 @@ class Settings:
     ml_client_id: str = ""
     ml_client_secret: str = ""
     ml_redirect_uri: str = ""
+    amazon_id: str = ""              # Creators API (credencial v3)
+    amazon_secret: str = ""
+    amazon_tag: str = ""             # tag de afiliado, ex.: "seutag-20"
     telegram_on: bool = False
     telegram_token: str = ""
     telegram_chat_id: str = ""
@@ -71,6 +74,7 @@ def load(path: str | Path) -> Settings:
     g = raw.get("geral", {})
     d = raw.get("detector", {})
     ml = raw.get("mercadolivre", {})
+    amz = raw.get("amazon", {})
     tg = raw.get("telegram", {})
     win = raw.get("windows", {})
     f = raw.get("filtros", {})
@@ -128,6 +132,8 @@ def load(path: str | Path) -> Settings:
                                        por_minuto=int(pm) if pm is not None else None)
     if "mercadolivre" not in lojas and ml.get("client_id"):
         lojas["mercadolivre"] = LojaConfig(ativo=True)  # config antigo: só [mercadolivre]
+    if "amazon" not in lojas and amz.get("credencial_id"):
+        lojas["amazon"] = LojaConfig(ativo=True)  # preencheu a credencial: já liga
 
     return Settings(
         base_dir=base,
@@ -142,6 +148,9 @@ def load(path: str | Path) -> Settings:
         ml_client_id=str(ml.get("client_id", "")),
         ml_client_secret=str(ml.get("client_secret", "")),
         ml_redirect_uri=str(ml.get("redirect_uri", "")),
+        amazon_id=str(amz.get("credencial_id", "")),
+        amazon_secret=str(amz.get("credencial_segredo", "")),
+        amazon_tag=str(amz.get("tag_afiliado", "")),
         telegram_on=bool(tg.get("ativo", False)),
         telegram_token=str(tg.get("bot_token", "")),
         telegram_chat_id=str(tg.get("chat_id", "")),

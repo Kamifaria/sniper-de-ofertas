@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .collectors import Collector, MercadoLivreCollector, VtexCollector
+from .collectors import AmazonCollector, Collector, MercadoLivreCollector, VtexCollector
 from .config import Settings
 from .ratelimit import RateLimiter
 
@@ -27,6 +27,12 @@ def _mercadolivre(s: Settings, lim: RateLimiter) -> Optional[Collector]:
         return None
     return MercadoLivreCollector(s.ml_client_id, s.ml_client_secret,
                                  s.base_dir / "data" / "ml_token.json", limiter=lim)
+
+
+def _amazon(s: Settings, lim: RateLimiter) -> Optional[Collector]:
+    if not (s.amazon_id and s.amazon_secret and s.amazon_tag):
+        return None
+    return AmazonCollector(s.amazon_id, s.amazon_secret, s.amazon_tag, limiter=lim)
 
 
 def _vtex(chave: str, dominio: str) -> Callable[[Settings, RateLimiter], Optional[Collector]]:
@@ -129,5 +135,7 @@ VTEX = [
 LOJAS: dict[str, LojaInfo] = {i.chave: i for i in [
     LojaInfo("mercadolivre", "Mercado Livre", True, _mercadolivre, 60,
              "Preencha [mercadolivre] no config.toml e rode python auth_ml.py"),
+    LojaInfo("amazon", "Amazon", True, _amazon, 50,
+             "Preencha [amazon] no config.toml: credencial da Creators API e tag de afiliado"),
     *(LojaInfo(chave, nome, False, _vtex(chave, dominio), 30) for chave, nome, dominio in VTEX),
 ]}

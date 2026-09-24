@@ -8,7 +8,7 @@ Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catá
 - **Esporte:** Asics, Mizuno, Olympikus, Fila, Umbro, Penalty, New Balance, Under Armour, Skechers, Speedo, Crocs, Artwalk, Overboard.
 - **Moda, calçados e acessórios:** C&A, Hering, Reserva, Animale, Farm Rio, Bobô, Aramis, Calvin Klein, Levi's, Osklen, Malwee, Morena Rosa, Lupo, Duloren, Valisere, Puket, Dakota, Ferracini, Jorge Bischoff, Piccadilly, Santa Lolla, Usaflex, Chilli Beans, Óticas Diniz, Kipling, Vivara, Monte Carlo.
 
-As lojas novas vêm desligadas: ligue no bloco **Lojas** do painel. Loja ligada sem `[[varrer]]` no config ganha sozinha uma varredura de todas as categorias a cada 60 min. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. Steam, Epic, Nuuvem, Amazon e Shopee vêm nas próximas fases.
+As lojas novas vêm desligadas: ligue no bloco **Lojas** do painel. Loja ligada sem `[[varrer]]` no config ganha sozinha uma varredura de todas as categorias a cada 60 min. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. **Amazon** pela API oficial de afiliados (Creators API): veja "Ligar a Amazon". Steam, Epic, Nuuvem, Shopee e Shein vêm nas próximas fases.
 
 ## Como rodar (Windows)
 
@@ -33,6 +33,23 @@ Outras formas de abrir: `iniciar.bat --navegador` (abre no Chrome/Edge) ou `inic
    ```
    Autorize no navegador, copie a URL para onde você foi mandado e cole no terminal. O token fica em `data/ml_token.json` e é renovado automaticamente.
 4. Confira que o `config.toml` tem `[lojas.mercadolivre]` com `ativo = true` (configs antigos, só com `[mercadolivre]` preenchido, já ligam a loja).
+
+## Ligar a Amazon
+
+A Amazon só libera preços pela **Creators API**, do programa de afiliados (a antiga PA-API 5 foi desligada em maio de 2026). Precisa de conta no Amazon Associados aprovada; guias de afiliados dizem que manter o acesso exige 10 vendas qualificadas em 30 dias.
+
+1. No Associados: **Tools → Creators API → Create Credential**. Use credencial **v3** (as v2 pararam em 11/09/2026).
+2. No `config.toml`, preencha:
+   ```toml
+   [amazon]
+   credencial_id = "..."
+   credencial_segredo = "..."
+   tag_afiliado = "seutag-20"
+   ```
+   Com a credencial preenchida, a loja Amazon já liga (dá para desligar no painel).
+3. Crie regras `[[vigiar]]` com `loja = "amazon"` e `busca` (ou `itens = ["ASIN..."]`). A busca vem do mais barato para o mais caro, a partir do `preco_minimo`, só produto novo, 10 por página.
+
+A Amazon começa liberando 1 consulta por segundo, então não há varredura de catálogo: só as buscas e a fila rápida. Os links dos alertas já saem com a sua tag de afiliado. Marca muito falsificada só alerta se for vendida pela própria Amazon.
 
 ## Telegram (alerta no celular)
 
@@ -103,7 +120,7 @@ sniper/stores.py       registro de lojas (nome, oficial/não oficial, limite)
 sniper/engine.py       regras, varredura, fila rápida, saúde das lojas e alertas
 sniper/ratelimit.py    limite de consultas por loja e pausa por bloqueio
 sniper/detector.py     cálculo da nota
-sniper/collectors/     um coletor por plataforma (mercadolivre, vtex)
+sniper/collectors/     um coletor por plataforma (mercadolivre, vtex, amazon)
 sniper/db.py           SQLite: itens, histórico, alertas, estado da varredura
 sniper/notify.py       Telegram + notificação do Windows
 sniper/server.py       API local (127.0.0.1) + transmissão ao vivo
@@ -116,5 +133,5 @@ tests/                 python -m unittest discover tests
 
 - **Fase 2:** jogos (Steam, Epic, IsThereAnyDeal com Nuuvem) e comparação de preço entre lojas de jogos.
 - **Fase 3:** coletor VTEX genérico (Carrefour, Renner, Leroy Merlin e outras) e comparação por código de barras.
-- **Fase 4:** Amazon e Shopee pelas APIs de afiliados.
+- **Fase 4:** Amazon (feita) e Shopee pelas APIs de afiliados; Shein e Grupo Boticário por arquivo de produtos de redes de afiliados (Awin, Lomadee, CJ).
 - Depois: executor assistido de compra e aprendizado de quais lojas cancelam pedido.

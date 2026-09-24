@@ -47,6 +47,13 @@ client_id = ""
 client_secret = ""
 redirect_uri = "https://www.google.com"
 
+[amazon]
+# Creators API (programa de afiliados). Associados: Tools → Creators API → Create Credential (v3).
+# Com credencial_id preenchido a loja já liga.
+credencial_id = ""
+credencial_segredo = ""
+tag_afiliado = ""            # ex.: "seutag-20"
+
 # ---------- Alertas ----------
 [telegram]
 ativo = false
@@ -78,7 +85,7 @@ max_itens_rapida = 1000      # teto da fila rápida (os mais caros primeiro)
 # paginas = 1
 
 # ---------- O que vigiar ----------
-# loja: "mercadolivre"
+# loja: "mercadolivre" ou "amazon" (na Amazon: busca ou itens = ["ASIN"], 10 itens por página)
 # busca: termo de busca | categoria: id da categoria do ML (ex.: MLB1055 = celulares)
 # itens: lista de IDs de anúncios específicos (ex.: ["MLB123456789"])
 # intervalo: segundos entre coletas | piso: preço abaixo disso é suspeito
@@ -110,3 +117,11 @@ categoria = "MLB1652"
 intervalo = 180
 paginas = 2
 preco_minimo = 1500
+
+[[vigiar]]
+nome = "Amazon SSD"
+loja = "amazon"
+busca = "ssd nvme 1tb"
+intervalo = 300
+paginas = 2
+preco_minimo = 250
