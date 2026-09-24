@@ -175,6 +175,23 @@ class EscolherLojasTests(unittest.TestCase):
             info = {x["chave"]: x["ativa"] for x in eng2.lojas_info()}
             self.assertEqual(info, {"falsa": False, "outra": True})
 
+    def test_fila_rapida_pula_loja_desligada_no_meio_da_volta(self):
+        from fakes import FakeRefreshCollector
+        with MotorDeTeste() as m:
+            eng = m.engine
+            for loja in ("a", "b"):
+                eng.db.save_offer(oferta("X", 5000.0, store=loja, catalog=""))
+            a, b = FakeRefreshCollector({"X": 5000.0}), FakeRefreshCollector({"X": 5000.0})
+            eng.collectors.update(a=a, b=b)
+
+            async def refresh_que_desliga_b(ids):
+                eng.collectors.pop("b")  # usuária desligou "b" enquanto a volta rodava
+                return []
+            a.refresh = refresh_que_desliga_b
+            asyncio.run(eng.fast_lane_step())
+            self.assertEqual(b.pedidos, [])
+            self.assertIsNone(eng.watch_status["Fila rápida"]["error"])
+
     def test_regra_do_config_nao_duplica_varredura(self):
         w = Watch(name="Minha varredura", store="falsa", kind="varrer")
         with MotorDeTeste(watches=[w], lojas={"falsa": LojaConfig(ativo=True)}) as m:

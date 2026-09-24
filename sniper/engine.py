@@ -349,8 +349,8 @@ class Engine:
         t0 = time.time()
         alerts, itens, erros = 0, 0, []
         for store, col in list(self.collectors.items()):
-            if not col.supports_refresh:
-                continue
+            if not col.supports_refresh or self.collectors.get(store) is not col:
+                continue  # sem releitura, ou a loja foi desligada/religada no painel durante esta volta
             ids = self.db.fast_lane_items(store, self.s.valor_alto, self.s.max_itens_rapida)
             if not ids:
                 continue
