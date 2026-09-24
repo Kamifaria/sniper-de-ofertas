@@ -2,7 +2,13 @@
 
 Caçador de bugs de preço para Windows, pensado para rodar 24 horas. Ele varre o catálogo das lojas, relê os itens caros com frequência, detecta preço fora do normal (erro de vírgula, item de graça, queda brusca) e avisa no painel, com notificação do Windows e no Telegram.
 
-Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catálogo**: mais vendidos de cada categoria e todos os vendedores de cada produto, porque a busca de anúncios e a leitura direta de anúncios são bloqueadas para apps comuns) e **10 lojas VTEX** pela busca pública, sem login: C&A, Tok&Stok, Cobasi, Pague Menos, Americanas, Telhanorte, Sam's Club, Drogaria São Paulo, Drogarias Pacheco e Atacadão. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. Steam, Epic, Nuuvem, Amazon e Shopee vêm nas próximas fases.
+Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catálogo**: mais vendidos de cada categoria e todos os vendedores de cada produto, porque a busca de anúncios e a leitura direta de anúncios são bloqueadas para apps comuns) e **78 lojas VTEX** pela busca pública, sem login (lista completa em `sniper/stores.py`):
+- **Mercado, farmácia e beleza:** Americanas, Sam's Club, Atacadão, Giassi, Savegnago, Super Nosso, Zona Sul, Pague Menos, Drogaria São Paulo, Drogarias Pacheco, Drogal, Drogaria Venancio, Extrafarma, São João Farmácias, Dermage, Hinode, Jequiti.
+- **Eletro e casa:** Brastemp, Consul, Compra Certa, Electrolux, Fast Shop, Motorola, Polishop, Mondial, Arno, Oster, Multilaser, WebContinental, Tok&Stok, Brinox, Oxford Porcelanas, Telhanorte, Obramax, Amoedo, DPaschoal, Cobasi, Ri Happy.
+- **Esporte:** Asics, Mizuno, Olympikus, Fila, Umbro, Penalty, New Balance, Under Armour, Skechers, Speedo, Crocs, Artwalk, Overboard.
+- **Moda, calçados e acessórios:** C&A, Hering, Reserva, Animale, Farm Rio, Bobô, Aramis, Calvin Klein, Levi's, Osklen, Malwee, Morena Rosa, Lupo, Duloren, Valisere, Puket, Dakota, Ferracini, Jorge Bischoff, Piccadilly, Santa Lolla, Usaflex, Chilli Beans, Óticas Diniz, Kipling, Vivara, Monte Carlo.
+
+As lojas novas vêm desligadas: ligue no bloco **Lojas** do painel. Loja ligada sem `[[varrer]]` no config ganha sozinha uma varredura de todas as categorias a cada 60 min. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. Steam, Epic, Nuuvem, Amazon e Shopee vêm nas próximas fases.
 
 ## Como rodar (Windows)
 

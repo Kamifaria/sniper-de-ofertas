@@ -33,9 +33,10 @@ acessorios_extras = []            # ex.: ["cabo", "carregador"]
 ativo = true
 # por_minuto = 60
 
-# Lojas VTEX (busca pública, sem login, "não oficial"): cea, tokstok, cobasi, paguemenos, americanas,
-# telhanorte, samsclub, drogariasaopaulo, pacheco, atacadao. Ligue com [lojas.<nome>] ativo = true
-# e crie um [[varrer]] com loja = "<nome>" (veja o exemplo mais abaixo).
+# Lojas VTEX (busca pública, sem login, "não oficial"): 78 lojas, como cea, americanas, brastemp,
+# fastshop, chillibeans, asics, hering (a lista com os nomes está em sniper/stores.py). Ligue no painel
+# ou com [lojas.<nome>] ativo = true. Sem [[varrer]] para ela, a loja ganha uma varredura de todas as
+# categorias a cada 60 min; crie um [[varrer]] com loja = "<nome>" para mudar isso (exemplo mais abaixo).
 # [lojas.americanas]
 # ativo = true
 

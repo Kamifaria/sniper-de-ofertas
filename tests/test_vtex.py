@@ -113,11 +113,20 @@ class VtexColetorTests(unittest.TestCase):
 
 
 class RegistroVtexTests(unittest.TestCase):
-    def test_dez_lojas_nao_oficiais(self):
+    def test_lojas_nao_oficiais(self):
         vtex = {k: i for k, i in LOJAS.items() if k != "mercadolivre"}
-        self.assertEqual(len(vtex), 10)
+        self.assertEqual(len(vtex), 78)
         self.assertTrue(all(not i.oficial for i in vtex.values()))
         self.assertIn("samsclub", vtex)
+        self.assertIn("chillibeans", vtex)
+
+    def test_sem_loja_repetida(self):
+        from sniper.stores import VTEX
+        chaves = [c for c, _, _ in VTEX]
+        dominios = [d for _, _, d in VTEX]
+        self.assertEqual(len(chaves), len(set(chaves)))
+        self.assertEqual(len(dominios), len(set(dominios)))
+        self.assertTrue(all(c.isascii() and c.isalnum() and c.islower() for c in chaves))
 
 
 class PrecoSimbolicoTests(unittest.TestCase):
