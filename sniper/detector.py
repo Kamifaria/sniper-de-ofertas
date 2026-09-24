@@ -20,6 +20,7 @@ from .models import Offer, Verdict, Watch
 @dataclass
 class DetectorConfig:
     free_threshold: float = 1.00      # até R$ 1,00 conta como "de graça"
+    free_min_ref: float = 10.0        # ...mas só se o preço normal era pelo menos isso (fermento de R$ 1,18 não conta)
     min_history: int = 3              # leituras mínimas para confiar na mediana
     min_peers: int = 2                # concorrentes mínimos para usar como referência
     level_critico: int = 90
@@ -67,8 +68,8 @@ def evaluate(
     if watch and watch.min_price and typical and typical < watch.min_price:
         return Verdict(0, "NENHUM", [], typical, None)
 
-    # 1) De graça
-    if price <= cfg.free_threshold:
+    # 1) De graça (sem referência também conta: item novo a R$ 0,00 é suspeito; preço simbólico fixo é filtrado no motor)
+    if price <= cfg.free_threshold and (typical is None or typical >= cfg.free_min_ref):
         ref = typical or offer.original_price
         return Verdict(100, "GRATIS", ["Preço simbólico: R$ " + f"{price:.2f}".replace(".", ",")], ref, _drop(price, ref))
 

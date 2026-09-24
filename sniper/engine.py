@@ -41,18 +41,12 @@ class Engine:
 
         self.limiters: dict[str, RateLimiter] = {}
         self.store_status: dict[str, dict] = {}
-        for chave, info in LOJAS.items():
-            lc = settings.lojas.get(chave)
-            if not lc or not lc.ativo:
-                continue
-            lim = RateLimiter(lc.por_minuto or info.por_minuto)
-            self.limiters[chave] = lim
-            col = info.criar(settings, lim)
-            if col is None:
-                self.store_status[chave] = {"configurada": False, "motivo": info.motivo_sem_config}
-                continue
-            self.collectors[chave] = col
-            self.store_status[chave] = {"configurada": True, "motivo": ""}
+        self._store_tasks: dict[str, list[asyncio.Task]] = {}
+        self._started = False
+        prefs = self.db.store_prefs()
+        for chave in LOJAS:
+            if self._loja_ativa(chave, prefs):
+                self._criar_loja(chave)
         if settings.telegram_on and settings.telegram_token:
             self.notifiers.append(TelegramNotifier(settings.telegram_token, settings.telegram_chat_id,
                                                    settings.telegram_min_score))
@@ -82,20 +76,85 @@ class Engine:
         info = LOJAS.get(store)
         if info is None:
             return f"Loja '{store}' não existe"
+        pref = self.db.store_prefs().get(store)
         lc = self.s.lojas.get(store)
-        if lc is not None and not lc.ativo:
-            return f"Loja '{store}' desligada. Use [lojas.{store}] ativo = true no config.toml"
+        if pref is False or (pref is None and lc is not None and not lc.ativo):
+            return f"Loja '{info.nome}' desligada. Ligue no painel (bloco Lojas)"
         return info.motivo_sem_config
+
+    # ---------- lojas ligadas/desligadas ----------
+    def _loja_ativa(self, chave: str, prefs: dict[str, bool] | None = None) -> bool:
+        """A escolha feita no painel vence o config.toml."""
+        pref = (self.db.store_prefs() if prefs is None else prefs).get(chave)
+        if pref is not None:
+            return pref
+        lc = self.s.lojas.get(chave)
+        return bool(lc and lc.ativo)
+
+    def _criar_loja(self, chave: str) -> Collector | None:
+        info, lc = LOJAS[chave], self.s.lojas.get(chave)
+        lim = self.limiters.get(chave) or RateLimiter((lc.por_minuto if lc else None) or info.por_minuto)
+        self.limiters[chave] = lim
+        col = info.criar(self.s, lim)
+        if col is None:
+            self.store_status[chave] = {"configurada": False, "motivo": info.motivo_sem_config}
+            return None
+        self.collectors[chave] = col
+        self.store_status[chave] = {"configurada": True, "motivo": ""}
+        return col
+
+    def _store_watches(self, chave: str) -> list[Watch]:
+        """Regras do config desta loja + uma varredura automática se o config não tiver [[varrer]] para ela."""
+        ws = [w for w in self.s.watches if w.store == chave]
+        col = self.collectors.get(chave)
+        if col and col.supports_sweep and not any(w.kind == "varrer" for w in ws):
+            ws.append(Watch(name=f"Varredura {LOJAS[chave].nome}", store=chave, kind="varrer", cycle_min=60))
+        return ws
+
+    def _start_store(self, chave: str) -> None:
+        tasks = []
+        for w in self._store_watches(chave):
+            self.watch_status[w.name] = {"store": w.store, "kind": w.kind, "state": "aguardando",
+                                         "last_run": None, "count": 0, "error": None,
+                                         "interval": w.interval if w.kind == "vigiar" else None,
+                                         "duration": None}
+            loop = self._sweep_loop if w.kind == "varrer" else self._loop
+            tasks.append(asyncio.create_task(self._supervise(w.name, lambda w=w, loop=loop: loop(w))))
+        self._store_tasks[chave] = tasks
+
+    async def set_store_active(self, chave: str, ativo: bool) -> None:
+        """Liga/desliga uma loja na hora (sem reiniciar) e guarda a escolha no banco."""
+        if chave not in LOJAS:
+            raise KeyError(chave)
+        self.db.set_store_pref(chave, ativo)
+        nome = LOJAS[chave].nome
+        if ativo:
+            if chave not in self.collectors and self._criar_loja(chave) and self._started:
+                self._start_store(chave)
+            self.log("info", f"Loja ligada: {nome}")
+            return
+        for t in self._store_tasks.pop(chave, []):
+            t.cancel()
+        col = self.collectors.pop(chave, None)
+        if col:
+            await col.close()
+        self.limiters.pop(chave, None)
+        self.store_status.pop(chave, None)
+        self.store_errors.pop(chave, None)
+        for st in self.watch_status.values():
+            if st.get("store") == chave:
+                st.update(state="loja desligada", error=None)
+        self.log("info", f"Loja desligada: {nome}")
 
     def lojas_info(self) -> list[dict]:
         out = []
+        prefs = self.db.store_prefs()
         for chave, info in LOJAS.items():
-            lc = self.s.lojas.get(chave)
             st = self.store_status.get(chave, {})
             lim = self.limiters.get(chave)
             err = self.store_errors.get(chave)
             out.append({"chave": chave, "nome": info.nome, "oficial": info.oficial,
-                        "ativa": bool(lc and lc.ativo), "configurada": st.get("configurada", False),
+                        "ativa": self._loja_ativa(chave, prefs), "configurada": st.get("configurada", False),
                         "motivo": st.get("motivo") or (self._motivo_sem_coletor(chave) if not st else ""),
                         "limite": lim.estado() if lim else None,
                         "erro": err["msg"] if err else None})
@@ -163,31 +222,27 @@ class Engine:
 
     # ---------- ciclo ----------
     async def start(self) -> None:
+        self._started = True
         for w in self.s.watches:
             if w.store not in self.collectors:
-                self.watch_status[w.name] = {"store": w.store, "kind": w.kind, "state": "sem coletor",
+                estado = "loja desligada" if not self._loja_ativa(w.store) else "sem coletor"
+                self.watch_status[w.name] = {"store": w.store, "kind": w.kind, "state": estado,
                                              "error": self._motivo_sem_coletor(w.store),
                                              "count": 0, "interval": w.interval}
-                continue
-            self.watch_status[w.name] = {"store": w.store, "kind": w.kind, "state": "aguardando",
-                                         "last_run": None, "count": 0, "error": None,
-                                         "interval": w.interval if w.kind == "vigiar" else None,
-                                         "duration": None}
-            loop = self._sweep_loop if w.kind == "varrer" else self._loop
-            self._tasks.append(asyncio.create_task(
-                self._supervise(w.name, lambda w=w, loop=loop: loop(w))))
-        if any(c.supports_refresh for c in self.collectors.values()):
-            self.watch_status[FILA_RAPIDA] = {"store": "", "kind": "rapida", "state": "aguardando",
-                                              "count": 0, "error": None, "last_run": None,
-                                              "interval": self.s.intervalo_rapido}
-            self._tasks.append(asyncio.create_task(self._supervise(FILA_RAPIDA, self._fast_loop)))
+        for chave in list(self.collectors):
+            self._start_store(chave)
+        # A fila rápida sempre roda: uma loja ligada depois no painel entra nela sozinha.
+        self.watch_status[FILA_RAPIDA] = {"store": "", "kind": "rapida", "state": "aguardando",
+                                          "count": 0, "error": None, "last_run": None,
+                                          "interval": self.s.intervalo_rapido}
+        self._tasks.append(asyncio.create_task(self._supervise(FILA_RAPIDA, self._fast_loop)))
         self._tasks.append(asyncio.create_task(self._supervise("saúde", self._health_loop)))
         self._tasks.append(asyncio.create_task(self._housekeeping()))
-        ativas = sum(1 for w in self.s.watches if w.store in self.collectors)
-        self.log("info", f"Motor iniciado com {ativas} regra(s) ativa(s)")
+        regras = sum(len(ts) for ts in self._store_tasks.values())
+        self.log("info", f"Motor iniciado: {len(self.collectors)} loja(s), {regras} regra(s)")
 
     async def stop(self) -> None:
-        for t in self._tasks:
+        for t in self._tasks + [t for ts in self._store_tasks.values() for t in ts]:
             t.cancel()
         for c in self.collectors.values():
             await c.close()
@@ -383,8 +438,14 @@ class Engine:
                 by_catalog[o.catalog_id][o.item_id] = o.price
 
         def peers_for(o: Offer) -> list[float]:
-            same = [p for iid, p in by_catalog.get(o.catalog_id, {}).items() if iid != o.item_id]
-            return same if len(same) >= det.min_peers else self.db.peer_prices(o.store, o.catalog_id, o.item_id)
+            if col.peers_mesma_loja:  # ex.: ML, vários vendedores do mesmo produto de catálogo
+                same = [p for iid, p in by_catalog.get(o.catalog_id, {}).items() if iid != o.item_id]
+                return same if len(same) >= det.min_peers else self.db.peer_prices(o.store, o.catalog_id, o.item_id)
+            # Loja sem vendedores concorrentes (VTEX): compara o mesmo código de barras em OUTRAS lojas.
+            outras = self.db.cross_store_prices(o.catalog_id, o.store)
+            if len(outras) < det.min_peers or not self.db.ean_unico(o.store, o.catalog_id):
+                return []
+            return outras
 
         def simbolico(o: Offer, hist: list[float]) -> bool:
             """Preço R$ 0,00/0,01 que a loja sempre mostrou (item sem preço), não um bug."""
@@ -499,11 +560,10 @@ class Engine:
 
     def _should_alert(self, store: str, item_id: str, price: float) -> bool:
         last = self.db.last_alert(store, item_id)
-        if not last:
+        if not last or time.time() - last["ts"] >= self.s.repeat_alert_h * 3600:
             return True
-        recent = time.time() - last["ts"] < self.s.cooldown_min * 60
-        # dentro do cooldown só alerta de novo se o preço caiu mais 5%+
-        return not recent or price < last["price"] * 0.95
+        # mesmo item já alertado: só alerta de novo se o preço caiu mais 5%+
+        return price < last["price"] * 0.95
 
     def subscribe(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue(maxsize=500)

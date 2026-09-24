@@ -72,7 +72,17 @@ Cada bloco `[[vigiar]]` no `config.toml` é uma regra:
 | "de/por" anunciado pela loja (≥80% / 60% / 45%) | +25 / +15 / +8 |
 | frete grátis (quando já há queda forte) | +5 |
 
-Níveis: **CRÍTICO** ≥ 90 · **ALTO** ≥ 70 · **MÉDIO** ≥ 50. Item sem histórico e sem piso fica limitado a 75, porque ainda não dá para confiar.
+Níveis: **CRÍTICO** ≥ 90 · **ALTO** ≥ 70 · **MÉDIO** ≥ 50. O padrão é o modo **"só bugs"** (`nota_minima_alerta = 70`): promoção comum de 40-50% não aparece.
+
+Contra falso alerta:
+- **GRÁTIS** (preço ≤ R$ 1,00) só conta se o preço normal era pelo menos R$ 10.
+- Nas lojas VTEX o mesmo código de barras aparece na unidade e na caixa, então **não** se compara produtos da mesma loja: a comparação é com o **mesmo código de barras em outras lojas** (EAN válido, único em cada loja, pelo menos 2 lojas).
+- O mesmo item com o mesmo preço só alerta de novo depois de 24 h (antes, só se cair mais 5%).
+
+## Escolher as lojas e log de bugs
+
+- No painel, bloco **Lojas**: botão **Ligar/Desligar** em cada loja. Vale na hora e fica salvo. Loja ligada ganha uma varredura automática (não precisa de `[[varrer]]`).
+- Lista de alertas = log de bugs. Filtre por **Hoje / 24 h / 7 dias** e use **⬇ Exportar CSV** (abre no Excel). Item sem histórico e sem piso fica limitado a 75, porque ainda não dá para confiar.
 
 ## Estrutura
 

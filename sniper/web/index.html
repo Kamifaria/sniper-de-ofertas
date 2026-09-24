@@ -89,7 +89,11 @@ aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(-
 .modal h4{margin:0 0 10px;font-size:15px}
 .modal svg{width:100%;height:240px;display:block}
 .modal .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:8px}
-#lojas{max-height:28%}
+#lojas{max-height:34%}
+.w.off{opacity:.55}
+.btn.tg{padding:1px 9px;font-size:11.5px}
+.toolbar select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:99px;padding:4px 10px;font:inherit;font-size:13px}
+a.btn{text-decoration:none;font-size:13px;padding:4px 12px}
 .tag{font:600 10px var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:middle}
 .tag.of{color:var(--accent);border-color:rgba(61,220,151,.4)}
 .tag.nof{color:var(--medio);border-color:rgba(245,213,71,.5)}
@@ -125,6 +129,13 @@ aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(-
       <button class="chip" data-lvl="ALTO">🔥 Alto</button>
       <button class="chip" data-lvl="MEDIO">💡 Médio</button>
       <span class="sep"></span>
+      <select id="periodo" title="Período dos alertas (log de bugs)">
+        <option value="">Todo o período</option>
+        <option value="hoje">Hoje</option>
+        <option value="24h">Últimas 24 h</option>
+        <option value="7d">Últimos 7 dias</option>
+      </select>
+      <a class="btn" id="btnCsv" href="/api/alerts.csv" download title="Baixa o log de bugs do período em CSV (abre no Excel)">⬇ Exportar CSV</a>
       <button class="chip" id="onlyNew">Só não vistos</button>
     </div>
     <div class="cards" id="cards"></div>
@@ -151,7 +162,7 @@ aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(-
 
 <script>
 const $ = s => document.querySelector(s);
-const state = {alerts: [], lvl: "", onlyNew: false, sound: true, paused: false};
+const state = {alerts: [], lvl: "", onlyNew: false, sound: true, paused: false, since: 0};
 const brl = v => v == null ? "-" : v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
 const hhmm = ts => new Date(ts * 1000).toLocaleTimeString("pt-BR");
 const ago = ts => { const s = Math.round(Date.now()/1000 - ts); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)}min` : `${Math.round(s/3600)}h`; };
@@ -196,7 +207,7 @@ function render(newId) {
 function renderWatches(ws) {
   const html = Object.entries(ws).map(([name, w]) => {
     const cls = w.state === "ok" ? "ok" : w.state === "erro" ? "erro"
-      : (w.state === "sem coletor" || w.state === "loja não suporta varredura") ? "sem" : "col";
+      : (w.state === "sem coletor" || w.state === "loja não suporta varredura" || w.state === "loja desligada") ? "sem" : "col";
     const last = w.last_run ? ` · última há ${ago(w.last_run)}` : "";
     let sub;
     if (w.kind === "varrer") {
@@ -217,17 +228,22 @@ function renderWatches(ws) {
 
 function renderLojas(list) {
   LOJAS = Object.fromEntries(list.map(l => [l.chave, l]));
-  const html = list.filter(l => l.ativa).map(l => {
+  const tag = l => `<span class="tag ${l.oficial ? "of" : "nof"}">${l.oficial ? "oficial" : "não oficial"}</span>`;
+  const ord = [...list].sort((a, b) => (b.ativa - a.ativa) || a.nome.localeCompare(b.nome, "pt-BR"));
+  const html = ord.map(l => {
+    if (!l.ativa) return `<div class="w off"><div class="top"><b>${esc(l.nome)}${tag(l)}</b>
+      <button class="btn tg" data-loja="${esc(l.chave)}" data-on="1" title="Começa a vigiar esta loja agora">Ligar</button></div></div>`;
     const lim = l.limite, pausa = lim && lim.pausada_ate;
     const [cls, txt] = !l.configurada ? ["sem", "não configurada"]
       : pausa ? ["erro", `pausada até ${hhmm(pausa).slice(0, 5)}`]
       : l.erro ? ["erro", "com erro"] : ["ok", "ok"];
     const det = !l.configurada ? l.motivo : pausa ? lim.motivo : l.erro;
-    return `<div class="w"><div class="top"><b>${esc(l.nome)}<span class="tag ${l.oficial ? "of" : "nof"}">${l.oficial ? "oficial" : "não oficial"}</span></b><span class="st ${cls}">${esc(txt)}</span></div>
+    return `<div class="w"><div class="top"><b>${esc(l.nome)}${tag(l)}</b><span><span class="st ${cls}">${esc(txt)}</span>
+      <button class="btn tg" data-loja="${esc(l.chave)}" data-on="0" title="Para de vigiar esta loja">Desligar</button></span></div>
       ${lim ? `<div class="sub">${lim.ultimo_minuto}/${lim.limite} consultas no último minuto</div>` : ""}
       ${det ? `<div class="err">${esc(det)}</div>` : ""}</div>`;
   }).join("");
-  $("#lojas").innerHTML = html || `<div class="w sub">Nenhuma loja ligada. Use [lojas.mercadolivre] ativo = true no config.toml.</div>`;
+  $("#lojas").innerHTML = html;
 }
 
 function addLog(ev) {
@@ -338,9 +354,26 @@ document.addEventListener("click", async e => {
     await api("/api/sellers/block", {store, seller_id, nickname, reason: "marcada por você como loja de teste"});
     loadBlocked(); refreshStats(); t.remove();
   } else if (t.dataset.openUrl) { api("/api/open", {url: t.dataset.openUrl}); }
+  else if (t.dataset.loja) {
+    t.disabled = true;
+    renderLojas(await api(`/api/lojas/${encodeURIComponent(t.dataset.loja)}`, {ativo: t.dataset.on === "1"}));
+    renderWatches(await api("/api/watches"));
+  }
 });
 $("#btnSom").onclick = () => { state.sound = !state.sound; $("#btnSom").textContent = state.sound ? "🔔 Som ligado" : "🔕 Som desligado"; if (state.sound) beep("MEDIO"); };
 $("#btnPause").onclick = async () => { const r = await api("/api/pause", {paused: !state.paused}); state.paused = r.pausado; updateLive(); };
+
+function sinceFor(v) {
+  const now = Date.now() / 1000;
+  if (v === "hoje") { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() / 1000; }
+  return v === "24h" ? now - 86400 : v === "7d" ? now - 7 * 86400 : 0;
+}
+async function loadAlerts() {
+  const q = state.since ? `&since=${state.since}` : "";
+  state.alerts = await api(`/api/alerts?limit=500${q}`); render();
+  $("#btnCsv").href = "/api/alerts.csv" + (state.since ? `?since=${state.since}` : "");
+}
+$("#periodo").onchange = e => { state.since = sinceFor(e.target.value); loadAlerts(); };
 
 async function loadDiscards() {
   const list = await api("/api/discards?limit=150");
@@ -362,7 +395,7 @@ async function loadBlocked() {
 
 (async () => {
   renderLojas(await api("/api/lojas"));
-  state.alerts = await api("/api/alerts?limit=200"); render();
+  await loadAlerts();
   renderWatches(await api("/api/watches"));
   (await api("/api/events")).filter(e => e.type === "log").forEach(addLog);
   refreshStats(); setInterval(refreshStats, 5000);

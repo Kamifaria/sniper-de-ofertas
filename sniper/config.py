@@ -23,8 +23,9 @@ class Settings:
     base_dir: Path
     db_path: Path
     port: int = 8765
-    min_alert_score: int = 50
+    min_alert_score: int = 70        # modo "só bugs": 70 = queda de ~70%+ ou queda brusca
     cooldown_min: int = 30
+    repeat_alert_h: int = 24         # mesmo item e mesmo preço não alerta de novo nesse prazo
     valor_alto: float = 300.0        # fila rápida: itens a partir deste preço
     intervalo_rapido: int = 120      # fila rápida: segundos entre voltas
     max_itens_rapida: int = 1000     # fila rápida: teto de itens (os mais caros primeiro)
@@ -131,8 +132,9 @@ def load(path: str | Path) -> Settings:
         base_dir=base,
         db_path=base / g.get("banco", "data/sniper.db"),
         port=int(g.get("porta", 8765)),
-        min_alert_score=int(g.get("nota_minima_alerta", 50)),
+        min_alert_score=int(g.get("nota_minima_alerta", 70)),
         cooldown_min=int(g.get("cooldown_minutos", 30)),
+        repeat_alert_h=int(g.get("repetir_alerta_horas", 24)),
         valor_alto=float(vr.get("valor_alto", 300)),
         intervalo_rapido=int(vr.get("intervalo_rapido", 120)),
         max_itens_rapida=int(vr.get("max_itens_rapida", 1000)),
@@ -149,6 +151,7 @@ def load(path: str | Path) -> Settings:
         windows_min_score=int(win.get("nota_minima", 70)),
         detector=DetectorConfig(
             free_threshold=float(d.get("preco_gratis", 1.0)),
+            free_min_ref=float(d.get("gratis_referencia_minima", 10.0)),
             min_history=int(d.get("historico_minimo", 3)),
             min_peers=int(d.get("concorrentes_minimos", 2)),
         ),

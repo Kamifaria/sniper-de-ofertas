@@ -42,7 +42,19 @@ CREATE INDEX IF NOT EXISTS ix_discards_ts ON discards (ts);
 CREATE TABLE IF NOT EXISTS sweep_state (
     watch TEXT PRIMARY KEY, units TEXT, units_ts REAL, cursor INTEGER DEFAULT 0, cycle_started REAL
 );
+CREATE TABLE IF NOT EXISTS store_prefs (store TEXT PRIMARY KEY, ativo INTEGER);
 """
+
+
+def ean_valido(ean: str) -> bool:
+    """GTIN-8/12/13/14 com dígito verificador certo. Códigos internos (prefixo 2) e repetidos ficam de fora."""
+    if not ean or not ean.isdigit() or len(ean) not in (8, 12, 13, 14) or len(set(ean)) == 1:
+        return False
+    if len(ean) == 13 and ean.startswith("2"):  # código de uso interno da loja (balança, kits)
+        return False
+    d = [int(c) for c in ean]
+    soma = sum(x * (3 if i % 2 else 1) for i, x in enumerate(reversed(d[:-1]), start=1))
+    return (10 - soma % 10) % 10 == d[-1]
 
 # Colunas novas em bancos criados por versões anteriores.
 MIGRATIONS = {
@@ -69,6 +81,7 @@ class Database:
                     self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
         self.conn.execute("CREATE INDEX IF NOT EXISTS ix_items_catalog ON items (store, catalog_id)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS ix_items_price ON items (store, last_price)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS ix_items_ean ON items (catalog_id)")
         # O modo demonstração foi removido: apaga o que a loja simulada deixou no banco.
         for table in ("prices", "items", "alerts", "discards", "sellers"):
             self.conn.execute(f"DELETE FROM {table} WHERE store='demo'")
@@ -149,11 +162,14 @@ class Database:
         r = self.conn.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)).fetchone()
         return self._alert_dict(r) if r else {}
 
-    def list_alerts(self, limit: int = 100, min_score: int = 0, status: str | None = None) -> list[dict]:
+    def list_alerts(self, limit: int = 100, min_score: int = 0, status: str | None = None,
+                    since: float | None = None) -> list[dict]:
         sql = "SELECT * FROM alerts WHERE score>=?"
         args: list = [min_score]
         if status:
             sql += " AND status=?"; args.append(status)
+        if since:
+            sql += " AND ts>=?"; args.append(since)
         sql += " ORDER BY ts DESC LIMIT ?"; args.append(limit)
         return [self._alert_dict(r) for r in self.conn.execute(sql, args).fetchall()]
 
@@ -184,6 +200,30 @@ class Database:
             (store, catalog_id, exclude_item, time.time() - max_age_h * 3600),
         ).fetchall()
         return [r[0] for r in rows if r[0] is not None]
+
+    def cross_store_prices(self, ean: str, exclude_store: str, max_age_h: float = 48) -> list[float]:
+        """Preço do mesmo código de barras em OUTRAS lojas (um por loja). Loja que usa o EAN em mais
+        de um produto (ex.: unidade x caixa) fica de fora, porque aí o código não identifica o produto."""
+        if not ean_valido(ean):
+            return []
+        rows = self.conn.execute(
+            "SELECT MAX(last_price) FROM items WHERE catalog_id=? AND store!=? AND last_seen>=? "
+            "GROUP BY store HAVING COUNT(*)=1",
+            (ean, exclude_store, time.time() - max_age_h * 3600)).fetchall()
+        return [r[0] for r in rows if r[0] is not None]
+
+    def ean_unico(self, store: str, ean: str) -> bool:
+        return self.conn.execute("SELECT COUNT(*) FROM items WHERE store=? AND catalog_id=?",
+                                 (store, ean)).fetchone()[0] <= 1
+
+    # ---------- lojas escolhidas no painel ----------
+    def store_prefs(self) -> dict[str, bool]:
+        return {r[0]: bool(r[1]) for r in self.conn.execute("SELECT store, ativo FROM store_prefs")}
+
+    def set_store_pref(self, store: str, ativo: bool) -> None:
+        with self.lock, self.conn:
+            self.conn.execute("INSERT INTO store_prefs (store, ativo) VALUES (?,?) "
+                              "ON CONFLICT(store) DO UPDATE SET ativo=excluded.ativo", (store, int(ativo)))
 
     # ---------- fila rápida ----------
     def fast_lane_items(self, store: str, min_price: float, limit: int, max_age_s: float = 48 * 3600) -> list[str]:

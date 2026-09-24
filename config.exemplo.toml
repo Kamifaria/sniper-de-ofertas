@@ -6,11 +6,13 @@
 [geral]
 porta = 8765
 banco = "data/sniper.db"
-nota_minima_alerta = 50      # abaixo disso nem aparece no painel
-cooldown_minutos = 30        # não repete alerta do mesmo item nesse tempo (a não ser que caia mais)
+nota_minima_alerta = 70      # modo "só bugs": 70 = queda de ~70%+ ou queda brusca (50 mostra promoções)
+cooldown_minutos = 30        # não repete o mesmo descarte nesse tempo
+repetir_alerta_horas = 24    # mesmo item e mesmo preço não alerta de novo nesse prazo (só se cair +5%)
 
 [detector]
-preco_gratis = 1.00          # até esse valor conta como "de graça"
+preco_gratis = 1.00          # até esse valor conta como "de graça"...
+gratis_referencia_minima = 10  # ...se o preço normal era pelo menos isso (R$ 1,18 -> R$ 0,78 não é bug)
 historico_minimo = 3         # leituras antes de confiar na mediana
 concorrentes_minimos = 2     # outros vendedores do mesmo produto para comparar preço
 

@@ -36,12 +36,18 @@ def _ja_rodando(port: int) -> bool:
         return False
 
 
+def _janela(url: str) -> None:
+    """Abre o painel na janela nativa (pywebview). Levanta ImportError se não estiver instalado."""
+    import webview  # pywebview: janela nativa (Edge WebView2 no Windows)
+    webview.settings["ALLOW_DOWNLOADS"] = True  # botão "Exportar CSV" do painel
+    webview.create_window("Sniper de Ofertas", url, width=1400, height=880, min_size=(900, 600))
+    webview.start()
+
+
 def _abrir_janela_existente(url: str, navegador: bool) -> None:
     if not navegador:
         try:
-            import webview
-            webview.create_window("Sniper de Ofertas", url, width=1400, height=880, min_size=(900, 600))
-            webview.start()
+            _janela(url)
             return
         except ImportError:
             print("pywebview não instalado; abrindo no navegador.")
@@ -75,6 +81,8 @@ def main() -> None:
                         handlers=[logging.StreamHandler(),
                                   RotatingFileHandler(BASE / "data" / "sniper.log", maxBytes=5 * 1024 * 1024,
                                                       backupCount=4, encoding="utf-8")])
+    for barulhento in ("httpx", "httpcore"):  # não registra cada requisição: o log fica legível
+        logging.getLogger(barulhento).setLevel(logging.WARNING)
     if winsys.impedir_suspensao():
         logging.getLogger("sniper").info("Suspensão do Windows bloqueada enquanto o Sniper roda")
     settings = config.load(cfg_path)
@@ -106,9 +114,7 @@ def main() -> None:
 
     if not args.navegador:
         try:
-            import webview  # pywebview: janela nativa (Edge WebView2 no Windows)
-            webview.create_window("Sniper de Ofertas", url, width=1400, height=880, min_size=(900, 600))
-            webview.start()
+            _janela(url)
             server.should_exit = True
             return
         except ImportError:

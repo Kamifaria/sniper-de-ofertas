@@ -61,6 +61,7 @@ def _to_offers(prod: dict, store: str, watch: Watch, only: Optional[set[str]] = 
 class VtexCollector(Collector):
     supports_sweep = True
     supports_refresh = True
+    peers_mesma_loja = False  # o mesmo EAN aparece em unidade e caixa: só compara com outras lojas
     precos_simbolicos = True  # a VTEX mostra R$ 0,00/0,01 em item "sob consulta" ou sem preço para o canal
 
     def __init__(self, chave: str, dominio: str, limiter: Optional[RateLimiter] = None, max_concurrency: int = 2):

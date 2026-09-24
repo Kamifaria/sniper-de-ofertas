@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import csv
+import io
 import json
+import time
 import webbrowser
 from pathlib import Path
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from .config import Settings
@@ -35,7 +38,24 @@ def create_app(settings: Settings) -> Starlette:
         q = req.query_params
         return JSONResponse(engine.db.list_alerts(
             limit=int(q.get("limit", 100)), min_score=int(q.get("min_score", 0)),
-            status=q.get("status") or None))
+            status=q.get("status") or None, since=float(q["since"]) if q.get("since") else None))
+
+    async def alerts_csv(req: Request):
+        """Log de bugs do período em CSV (abre no Excel: separador ';' e UTF-8 com BOM)."""
+        q = req.query_params
+        since = float(q["since"]) if q.get("since") else None
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=";", quoting=csv.QUOTE_ALL, lineterminator="\n")
+        w.writerow(["data", "loja", "nivel", "nota", "produto", "preco", "referencia", "queda_%",
+                    "motivos", "status", "link"])
+        for a in engine.db.list_alerts(limit=100000, since=since):
+            w.writerow([time.strftime("%d/%m/%Y %H:%M", time.localtime(a["ts"])), a["store"], a["level"],
+                        a["score"], a["title"], f"{a['price']:.2f}".replace(".", ","),
+                        f"{a['ref_price']:.2f}".replace(".", ",") if a["ref_price"] else "",
+                        round((a["drop_pct"] or 0) * 100), " | ".join(a["reasons"]), a["status"], a["url"]])
+        nome = time.strftime("bugs-%Y%m%d-%H%M.csv")
+        return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
     async def set_status(req: Request):
         body = await req.json()
@@ -76,6 +96,14 @@ def create_app(settings: Settings) -> Starlette:
         return JSONResponse(engine.watch_status)
 
     async def lojas(_: Request):
+        return JSONResponse(engine.lojas_info())
+
+    async def set_loja(req: Request):
+        body = await req.json()
+        try:
+            await engine.set_store_active(req.path_params["chave"], bool(body.get("ativo")))
+        except KeyError:
+            return JSONResponse({"erro": "loja não existe"}, status_code=404)
         return JSONResponse(engine.lojas_info())
 
     async def events(_: Request):
@@ -122,6 +150,7 @@ def create_app(settings: Settings) -> Starlette:
     routes = [
         Route("/", index),
         Route("/api/alerts", alerts),
+        Route("/api/alerts.csv", alerts_csv),
         Route("/api/alerts/{id:int}/status", set_status, methods=["POST"]),
         Route("/api/stats", stats),
         Route("/api/discards", discards),
@@ -129,6 +158,7 @@ def create_app(settings: Settings) -> Starlette:
         Route("/api/sellers/block", block, methods=["POST"]),
         Route("/api/watches", watches),
         Route("/api/lojas", lojas),
+        Route("/api/lojas/{chave}", set_loja, methods=["POST"]),
         Route("/api/events", events),
         Route("/api/history/{store}/{item_id}", history),
         Route("/api/pause", pause, methods=["POST"]),
