@@ -14,9 +14,10 @@ from sniper.models import Offer, SellerInfo  # noqa: E402
 
 
 def oferta(iid: str, price: float, title: str = "Apple iPhone 15 128GB", seller: str = "GOOD",
-           store: str = "t", catalog: str = "C1", **kw) -> Offer:
+           store: str = "t", catalog: str = "C1", oficial: bool = True, **kw) -> Offer:
+    # oficial=True: estes testes não são sobre falsificação (título padrão é de marca visada)
     return Offer(store=store, item_id=iid, title=title, price=price, url="https://x",
-                 seller_id=seller, catalog_id=catalog, **kw)
+                 seller_id=seller, catalog_id=catalog, official_seller=oficial, **kw)
 
 
 class FakeCollector(Collector):

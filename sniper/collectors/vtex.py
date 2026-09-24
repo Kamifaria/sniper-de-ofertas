@@ -54,6 +54,8 @@ def _to_offers(prod: dict, store: str, watch: Watch, only: Optional[set[str]] = 
             seller_name=seller.get("sellerName") or "",
             condition="new",
             catalog_id=item.get("ean") or "",
+            brand=prod.get("brand") or "",
+            official_seller=str(seller.get("sellerId")) == "1",  # "1" é a própria loja; o resto é marketplace
         ))
     return offers
 

@@ -89,8 +89,8 @@ class ConcorrentesTests(unittest.TestCase):
                       oferta("C", 470.0, catalog=EAN), oferta("D", 14.9, catalog=EAN)]
             self.assertEqual(asyncio.run(m.engine._process(w, col, offers))["alertas"], 0)
 
-    def _outras_lojas(self, db, ean, precos=(100.0, 102.0)):
-        for loja, p in zip(("loja1", "loja2"), precos):
+    def _outras_lojas(self, db, ean, precos=(100.0, 102.0, 101.0)):
+        for loja, p in zip(("loja1", "loja2", "loja3"), precos):
             db.save_offer(Offer(store=loja, item_id="Z", title="Produto", price=p, url="https://x", catalog_id=ean))
 
     def test_muito_abaixo_de_outras_lojas_alerta(self):
@@ -101,6 +101,14 @@ class ConcorrentesTests(unittest.TestCase):
             r = asyncio.run(m.engine._process(w, col, [oferta("D", 12.0, catalog=EAN)]))
             self.assertEqual(r["alertas"], 1)
             self.assertTrue(any("concorrentes" in x for x in m.engine.db.list_alerts()[0]["reasons"]))
+
+    def test_duas_outras_lojas_nao_bastam(self):
+        w = Watch(name="w", store="t")
+        with MotorDeTeste() as m:
+            self._outras_lojas(m.engine.db, EAN, precos=(100.0, 102.0))
+            col = SemConcorrenteNaMesmaLoja()
+            r = asyncio.run(m.engine._process(w, col, [oferta("D", 12.0, catalog=EAN)]))
+            self.assertEqual(r["alertas"], 0)
 
     def test_ean_invalido_nao_compara_entre_lojas(self):
         w = Watch(name="w", store="t")
@@ -119,7 +127,7 @@ class ConcorrentesTests(unittest.TestCase):
             db.save_offer(Offer(store="loja1", item_id="Z2", title="Caixa", price=900.0, url="https://x",
                                 catalog_id=EAN))
             r = asyncio.run(m.engine._process(w, SemConcorrenteNaMesmaLoja(), [oferta("D", 12.0, catalog=EAN)]))
-            self.assertEqual(r["alertas"], 0)  # sobra só 1 loja de referência (< 2)
+            self.assertEqual(r["alertas"], 0)  # sobram só 2 lojas de referência (< 3)
 
 
 class LojaFalsa(Collector):

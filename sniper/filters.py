@@ -24,6 +24,32 @@ TEST_WORDS = [
     "com defeito", "defeito", "para pecas", "retirada de pecas", "sucata", "tela quebrada",
     "leia a descricao", "leia o anuncio", "reserva", "sinal de", "aluguel", "locacao", "consorcio",
     "foto ilustrativa", "vale presente", "cupom de", "servico de",
+    # réplica com outro nome
+    "inspired", "inspiracao", "inspirado em", "primeira linha", "1a linha", "aaa", "espelhado", "espelhada",
+    # vale-compra: cada valor é um SKU do mesmo produto, e a comparação entre eles vira falso bug
+    "gift card", "giftcard", "cartao presente", "vale compra", "vale compras",
+]
+
+# Marcas muito falsificadas: só alerta se quem vende é oficial (loja oficial ou a própria loja).
+# Evite nomes que são palavras comuns ("omega", "diesel", "on", "polo"), que casariam com outros produtos.
+COUNTERFEIT_BRANDS = [
+    # luxo e grifes
+    "Gucci", "Louis Vuitton", "Prada", "Miu Miu", "Chanel", "Dior", "Versace", "Balenciaga", "Burberry",
+    "Fendi", "Hermès", "Givenchy", "Saint Laurent", "Yves Saint Laurent", "YSL", "Valentino",
+    "Bottega Veneta", "Dolce & Gabbana", "Dolce Gabbana", "Armani", "Emporio Armani", "Hugo Boss",
+    "Michael Kors", "Kate Spade", "Tory Burch", "Moncler", "Off-White", "Supreme", "Stone Island",
+    "Lacoste", "Tommy Hilfiger", "Calvin Klein", "Ralph Lauren", "Cartier", "Bvlgari", "Bulgari",
+    "Pandora", "Rolex", "Tag Heuer", "G-Shock", "Oakley", "Ray-Ban", "Ray Ban", "Rayban",
+    # tênis e esporte
+    "Nike", "Air Jordan", "Jordan", "Yeezy", "Adidas", "New Balance", "Vans", "Converse", "All Star",
+    "Puma", "Asics", "Mizuno", "Hoka", "Crocs", "The North Face", "Timberland",
+    # eletrônicos
+    "Apple", "iPhone", "AirPods", "iPad", "MacBook", "JBL", "Beats", "Bose",
+    # perfumes importados
+    "Paco Rabanne", "Carolina Herrera", "Lancôme", "Jean Paul Gaultier", "Azzaro", "Montblanc",
+    "Mont Blanc",
+    # modinhas muito copiadas
+    "Stanley", "Labubu", "Pop Mart", "Lego",
 ]
 
 # Acessórios que aparecem na busca do produto principal.
@@ -49,6 +75,7 @@ def _has_phrase(norm_title: str, phrase: str) -> bool:
 class FilterConfig:
     test_words: list[str] = field(default_factory=lambda: list(TEST_WORDS))
     accessory_words: list[str] = field(default_factory=lambda: list(ACCESSORY_WORDS))
+    counterfeit_brands: list[str] = field(default_factory=lambda: list(COUNTERFEIT_BRANDS))
     exclude_used: bool = True
     require_query_terms: bool = True
     min_seller_sales: int = 10
@@ -80,6 +107,19 @@ def check_listing(o: Offer, w: Optional[Watch], cfg: FilterConfig, blocked: set[
             missing = missing_query_terms(title, query)
             if missing:
                 return f"Não bate com a busca (falta \"{missing}\")"
+
+    if o.official_seller is not True:
+        marca = counterfeit_brand(title, normalize(o.brand), cfg)
+        if marca:
+            return f"Marca muito falsificada ({marca}) de vendedor não oficial"
+    return None
+
+
+def counterfeit_brand(norm_title: str, norm_brand: str, cfg: FilterConfig) -> Optional[str]:
+    """Marca da lista de falsificadas que aparece na marca informada pela loja ou no título."""
+    for marca in cfg.counterfeit_brands:
+        if (norm_brand and _has_phrase(norm_brand, marca)) or _has_phrase(norm_title, marca):
+            return marca
     return None
 
 

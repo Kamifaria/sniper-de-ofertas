@@ -82,7 +82,11 @@ Níveis: **CRÍTICO** ≥ 90 · **ALTO** ≥ 70 · **MÉDIO** ≥ 50. O padrão 
 
 Contra falso alerta:
 - **GRÁTIS** (preço ≤ R$ 1,00) só conta se o preço normal era pelo menos R$ 10.
-- Nas lojas VTEX o mesmo código de barras aparece na unidade e na caixa, então **não** se compara produtos da mesma loja: a comparação é com o **mesmo código de barras em outras lojas** (EAN válido, único em cada loja, pelo menos 2 lojas).
+- Nas lojas VTEX o mesmo código de barras aparece na unidade e na caixa, então **não** se compara produtos da mesma loja: a comparação é com o **mesmo código de barras em outras lojas** (EAN válido, único em cada loja, pelo menos 3 outras lojas).
+- **Só original em marca muito falsificada:** Gucci, Nike, Adidas, Vans, Apple, Stanley, perfumes importados e outras (lista em `sniper/filters.py`) só alertam se quem vende é **oficial**: no Mercado Livre, loja oficial ou o próprio ML; nas lojas VTEX, a própria loja (não o marketplace). O resto vai para **Descartados** com o motivo. Acrescente marcas em `[filtros] marcas_falsificadas_extras`.
+- **Preço de mercado não é bug:** se 2 ou mais concorrentes vendem até 30% acima (ou mais barato), a mediana é que está alta.
+- **Preço de sempre não é bug:** abaixo dos concorrentes, mas sempre custou isso nesta loja (ex.: unidade comparada com a caixa).
+- Títulos com cara de réplica ("inspired", "primeira linha", "AAA", "espelhado") e gift cards são descartados.
 - O mesmo item com o mesmo preço só alerta de novo depois de 24 h (antes, só se cair mais 5%).
 
 ## Escolher as lojas e log de bugs

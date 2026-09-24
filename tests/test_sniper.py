@@ -82,7 +82,7 @@ class FilterTests(unittest.TestCase):
     w = Watch(name="w", store="t", query="iphone 15")
 
     def chk(self, title, **kw):
-        o = Offer(store="t", item_id="1", title=title, price=10, url="https://x", **kw)
+        o = Offer(store="t", item_id="1", title=title, price=10, url="https://x", **{"official_seller": True, **kw})
         return filters.check_listing(o, self.w, self.cfg, blocked={"t:BAD"})
 
     def test_anuncio_de_teste(self):
@@ -155,7 +155,7 @@ class EngineTests(unittest.TestCase):
 
     def mk(self, iid, price, seller="GOOD", title="Apple iPhone 15 128GB"):
         return Offer(store="t", item_id=iid, title=title, price=price, url="https://x",
-                     seller_id=seller, catalog_id="C1")
+                     seller_id=seller, catalog_id="C1", official_seller=True)
 
     def run_once(self):
         return asyncio.run(self.eng.run_watch(self.w))

@@ -24,6 +24,8 @@ class Offer:
     seller_name: str = ""
     condition: str = ""              # "new", "used", "" (desconhecido)
     catalog_id: str = ""             # id do produto de catálogo (mesmo produto, vários vendedores)
+    brand: str = ""                  # marca informada pela loja ("" = não informou)
+    official_seller: Optional[bool] = None  # loja oficial / a própria loja vende (None = não sabemos)
     confirmed: bool = False          # preço reconfirmado direto no anúncio antes do alerta
     collected_at: float = field(default_factory=time.time)
 

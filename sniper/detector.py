@@ -23,6 +23,9 @@ class DetectorConfig:
     free_min_ref: float = 10.0        # ...mas só se o preço normal era pelo menos isso (fermento de R$ 1,18 não conta)
     min_history: int = 3              # leituras mínimas para confiar na mediana
     min_peers: int = 2                # concorrentes mínimos para usar como referência
+    min_peers_outras_lojas: int = 3   # mesmo código de barras em outras lojas: com 2 ainda erra muito
+    market_band: float = 0.30         # concorrente até 30% acima (ou mais barato) conta como "vende perto"
+    market_min_peers: int = 2         # ...e com tantos vendendo perto, é preço de mercado, não bug
     level_critico: int = 90
     level_alto: int = 70
     level_medio: int = 50
@@ -76,6 +79,16 @@ def evaluate(
     # 2) Queda vs histórico do próprio anúncio e vs concorrentes do mesmo produto
     d_hist, d_peer = _drop(price, hist_med), _drop(price, peer_med)
     p_hist, p_peer = _drop_points(d_hist), _drop_points(d_peer)
+    if p_peer:
+        # Bug é um preço isolado. Se outros vendem perto, é o preço de mercado (a mediana é que está alta).
+        perto = sum(1 for p in peers if p <= price * (1 + cfg.market_band))  # mais barato também conta
+        if perto >= cfg.market_min_peers:
+            p_peer = 0
+            reasons.append(f"Outros {perto} vendem perto desse preço")
+        # Abaixo dos concorrentes, mas sempre custou isso aqui (ex.: unidade x caixa com o mesmo código).
+        elif d_hist is not None and d_hist < 0.10:
+            p_peer = 0
+            reasons.append("É o preço de sempre nesta loja")
     if p_hist:
         reasons.append(f"{d_hist:.0%} abaixo do próprio histórico")
     if p_peer:

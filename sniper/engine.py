@@ -309,7 +309,8 @@ class Engine:
             offers = await col.sweep(unit, w)
             alerts = (await self._process(w, col, offers))["alertas"]
         except (CollectorError, httpx.TransportError) as e:
-            err, avancar = f"{unit}: {e}", False  # loja bloqueou ou sem internet: tenta a mesma unidade depois
+            # loja bloqueou ou sem internet: tenta a mesma unidade depois (a httpx às vezes vem sem texto)
+            err, avancar = f"{unit}: {str(e) or type(e).__name__}", False
         except Exception as e:  # noqa: BLE001
             err = f"{unit} pulada: {type(e).__name__}: {e}"  # ex.: categoria sumiu
         if err:
@@ -445,7 +446,8 @@ class Engine:
                 return same if len(same) >= det.min_peers else self.db.peer_prices(o.store, o.catalog_id, o.item_id)
             # Loja sem vendedores concorrentes (VTEX): compara o mesmo código de barras em OUTRAS lojas.
             outras = self.db.cross_store_prices(o.catalog_id, o.store)
-            if len(outras) < det.min_peers or not self.db.ean_unico(o.store, o.catalog_id):
+            minimo = max(det.min_peers, det.min_peers_outras_lojas)
+            if len(outras) < minimo or not self.db.ean_unico(o.store, o.catalog_id):
                 return []
             return outras
 

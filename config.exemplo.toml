@@ -25,6 +25,7 @@ exigir_termos_da_busca = true     # "iphone 15" não aceita "iPhone 13"
 reconfirmar_preco = true          # relê o anúncio antes de alertar (descarta preço já corrigido)
 palavras_teste_extras = []        # ex.: ["demonstração", "mostruário"]
 acessorios_extras = []            # ex.: ["cabo", "carregador"]
+marcas_falsificadas_extras = []   # marcas que só alertam de vendedor oficial (já vem Gucci, Nike, Apple...)
 
 # ---------- Lojas ----------
 # Cada loja tem um bloco [lojas.<nome>]. ativo = true liga; por_minuto é opcional (limite de consultas).

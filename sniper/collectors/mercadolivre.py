@@ -68,7 +68,8 @@ class TokenStore:
             return self.data["access_token"]
 
 
-def _to_offer(it: dict, watch: Watch, catalog_id: str, nome: str, thumb: str) -> Optional[Offer]:
+def _to_offer(it: dict, watch: Watch, catalog_id: str, nome: str, thumb: str,
+              marca: str = "") -> Optional[Offer]:
     """Um vendedor de um produto do catálogo (/products/{id}/items)."""
     if not it or it.get("price") is None or not it.get("item_id"):
         return None
@@ -87,6 +88,9 @@ def _to_offer(it: dict, watch: Watch, catalog_id: str, nome: str, thumb: str) ->
         seller_id=str(it.get("seller_id") or ""),
         condition=it.get("condition") or "",
         catalog_id=catalog_id,
+        brand=marca,
+        # loja oficial da marca ou venda do próprio Mercado Livre
+        official_seller=bool(it.get("official_store_id")) or "first_party" in (it.get("tags") or []),
     )
 
 
@@ -103,7 +107,7 @@ class MercadoLivreCollector(Collector):
         self.sem = asyncio.Semaphore(max_concurrency)
         self.limiter = limiter
         self._sleep = asyncio.sleep  # trocado nos testes para não esperar de verdade
-        self._produtos: dict[str, tuple[str, str]] = {}  # cache: id do produto -> (nome, foto)
+        self._produtos: dict[str, tuple[str, str, str]] = {}  # cache: id do produto -> (nome, foto, marca)
         self._aviso_itens = False
 
     async def _get(self, path: str, params: dict | None = None, fila: str = "normal",
@@ -146,27 +150,29 @@ class MercadoLivreCollector(Collector):
     # ---------- catálogo ----------
     # A busca de anúncios (/sites/MLB/search) e a leitura direta (/items) dão 403 para apps comuns;
     # o catálogo é liberado e mostra todos os vendedores do MESMO produto lado a lado (ótimo para achar bug).
-    async def _produto(self, pid: str, fila: str) -> tuple[str, str]:
-        """Nome e foto do produto do catálogo (em cache: não mudam)."""
+    async def _produto(self, pid: str, fila: str) -> tuple[str, str, str]:
+        """Nome, foto e marca do produto do catálogo (em cache: não mudam)."""
         if pid not in self._produtos:
             try:
                 p = await self._get(f"/products/{pid}", fila=fila, penalizar=False)
             except (CollectorError, httpx.HTTPError):
                 p = {}
             pics = p.get("pictures") or [{}]
-            self._produtos[pid] = (p.get("name") or pid, (pics[0].get("url") or "").replace("http://", "https://"))
+            marca = next((a.get("value_name") or "" for a in p.get("attributes") or [] if a.get("id") == "BRAND"), "")
+            self._produtos[pid] = (p.get("name") or pid, (pics[0].get("url") or "").replace("http://", "https://"),
+                                   marca)
         return self._produtos[pid]
 
     async def _vendedores(self, pid: str, watch: Watch, fila: str = "normal") -> list[Offer]:
         """Todos os vendedores de um produto do catálogo."""
-        nome, thumb = await self._produto(pid, fila)
+        nome, thumb, marca = await self._produto(pid, fila)
         try:
             data = await self._get(f"/products/{pid}/items", {"limit": 100}, fila=fila, penalizar=False)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:  # produto sem vendedor ativo
                 return []
             raise
-        return [o for o in (_to_offer(it, watch, pid, nome, thumb) for it in data.get("results", [])) if o]
+        return [o for o in (_to_offer(it, watch, pid, nome, thumb, marca) for it in data.get("results", [])) if o]
 
     async def _mais_vendidos(self, categoria: str) -> list[str]:
         try:

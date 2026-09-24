@@ -78,6 +78,7 @@ def load(path: str | Path) -> Settings:
     fc = FilterConfig()
     fc.test_words += [str(x) for x in f.get("palavras_teste_extras", [])]
     fc.accessory_words += [str(x) for x in f.get("acessorios_extras", [])]
+    fc.counterfeit_brands += [str(x) for x in f.get("marcas_falsificadas_extras", [])]
     fc.exclude_used = bool(f.get("excluir_usados", fc.exclude_used))
     fc.require_query_terms = bool(f.get("exigir_termos_da_busca", fc.require_query_terms))
     fc.min_seller_sales = int(f.get("min_vendas_vendedor", fc.min_seller_sales))

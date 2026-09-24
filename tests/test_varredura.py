@@ -63,6 +63,18 @@ class VarreduraTests(unittest.TestCase):
             self.passo(m)
             self.assertEqual(col.seen, ["a"])
 
+    def test_erro_de_conexao_sem_mensagem_mostra_o_tipo(self):
+        import httpx
+        with MotorDeTeste(watches=[W]) as m:
+            col = FakeSweepCollector(["a"])
+            self.prepara(m, col)
+
+            async def cai(unit, watch):
+                raise httpx.ReadTimeout("")  # a httpx costuma vir sem texto quando a internet cai
+            col.sweep = cai
+            self.passo(m)
+            self.assertIn("ReadTimeout", m.engine.watch_status[W.name]["error"])
+
     def test_lista_recarregada_mantem_a_unidade_atual(self):
         with MotorDeTeste(watches=[W]) as m:
             self.prepara(m, FakeSweepCollector(["a", "b", "c"]))
