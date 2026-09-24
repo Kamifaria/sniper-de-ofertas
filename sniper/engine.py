@@ -355,6 +355,8 @@ class Engine:
             if not ids:
                 continue
             itens += len(ids)
+            if col.refresh_por_catalogo:
+                ids = self.db.catalog_ids(store, ids)
             try:
                 offers = await col.refresh(ids)
             except Exception as e:  # noqa: BLE001

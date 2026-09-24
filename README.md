@@ -2,7 +2,7 @@
 
 Caçador de bugs de preço para Windows, pensado para rodar 24 horas. Ele varre o catálogo das lojas, relê os itens caros com frequência, detecta preço fora do normal (erro de vírgula, item de graça, queda brusca) e avisa no painel, com notificação do Windows e no Telegram.
 
-Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`) e **10 lojas VTEX** pela busca pública, sem login: C&A, Tok&Stok, Cobasi, Pague Menos, Americanas, Telhanorte, Sam's Club, Drogaria São Paulo, Drogarias Pacheco e Atacadão. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. Steam, Epic, Nuuvem, Amazon e Shopee vêm nas próximas fases.
+Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catálogo**: mais vendidos de cada categoria e todos os vendedores de cada produto, porque a busca de anúncios e a leitura direta de anúncios são bloqueadas para apps comuns) e **10 lojas VTEX** pela busca pública, sem login: C&A, Tok&Stok, Cobasi, Pague Menos, Americanas, Telhanorte, Sam's Club, Drogaria São Paulo, Drogarias Pacheco e Atacadão. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. Steam, Epic, Nuuvem, Amazon e Shopee vêm nas próximas fases.
 
 ## Como rodar (Windows)
 

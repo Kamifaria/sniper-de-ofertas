@@ -15,6 +15,7 @@ class Collector(ABC):
     store: str = ""
     supports_sweep: bool = False     # implementa sweep_units() + sweep()
     supports_refresh: bool = False   # implementa refresh() (fila rápida)
+    refresh_por_catalogo: bool = False  # refresh() recebe ids de produto do catálogo em vez de anúncio (ML)
     peers_mesma_loja: bool = True    # compara vendedores do mesmo produto na própria loja (ML)
     precos_simbolicos: bool = False  # loja mostra R$ 0,00/0,01 em item sem preço: só alerta se CAIU para isso
 

@@ -226,6 +226,20 @@ class Database:
                               "ON CONFLICT(store) DO UPDATE SET ativo=excluded.ativo", (store, int(ativo)))
 
     # ---------- fila rápida ----------
+    def catalog_ids(self, store: str, item_ids: list[str]) -> list[str]:
+        """Produtos do catálogo (sem repetir, na ordem dos itens) de uma lista de anúncios."""
+        out: dict[str, None] = {}
+        for i in range(0, len(item_ids), 500):
+            lote = item_ids[i:i + 500]
+            marks = ",".join("?" * len(lote))
+            rows = dict(self.conn.execute(
+                f"SELECT item_id, catalog_id FROM items WHERE store=? AND item_id IN ({marks})",
+                [store, *lote]).fetchall())
+            for iid in lote:
+                if rows.get(iid):
+                    out[rows[iid]] = None
+        return list(out)
+
     def fast_lane_items(self, store: str, min_price: float, limit: int, max_age_s: float = 48 * 3600) -> list[str]:
         """Itens caros vistos recentemente, do mais caro para o mais barato."""
         rows = self.conn.execute(

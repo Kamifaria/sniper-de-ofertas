@@ -24,8 +24,6 @@ log = logging.getLogger("sniper.ml")
 
 API = "https://api.mercadolibre.com"
 SITE = "MLB"  # Brasil
-ITEM_FIELDS = ("id,title,price,original_price,permalink,thumbnail,category_id,shipping,available_quantity,"
-               "status,seller_id,condition,catalog_product_id")
 
 
 class TokenStore:
@@ -70,29 +68,25 @@ class TokenStore:
             return self.data["access_token"]
 
 
-def _to_offer(it: dict, watch: Watch) -> Optional[Offer]:
-    if not it or it.get("price") is None:
+def _to_offer(it: dict, watch: Watch, catalog_id: str, nome: str, thumb: str) -> Optional[Offer]:
+    """Um vendedor de um produto do catálogo (/products/{id}/items)."""
+    if not it or it.get("price") is None or not it.get("item_id"):
         return None
-    if it.get("status") and it["status"] != "active":
-        return None
-    thumb = (it.get("thumbnail") or "").replace("http://", "https://")
-    seller = it.get("seller") or {}
+    iid = it["item_id"]
     return Offer(
         store="mercadolivre",
-        item_id=it["id"],
-        title=it.get("title", ""),
+        item_id=iid,
+        title=nome,
         price=float(it["price"]),
         original_price=float(it["original_price"]) if it.get("original_price") else None,
-        url=it.get("permalink", f"https://produto.mercadolivre.com.br/{it['id']}"),
+        url=f"https://produto.mercadolivre.com.br/{iid[:3]}-{iid[3:]}",
         thumbnail=thumb,
         category=it.get("category_id", ""),
         free_shipping=bool((it.get("shipping") or {}).get("free_shipping")),
-        available_qty=it.get("available_quantity"),
         watch=watch.name,
-        seller_id=str(seller.get("id") or it.get("seller_id") or ""),
-        seller_name=seller.get("nickname") or "",
+        seller_id=str(it.get("seller_id") or ""),
         condition=it.get("condition") or "",
-        catalog_id=it.get("catalog_product_id") or "",
+        catalog_id=catalog_id,
     )
 
 
@@ -100,6 +94,7 @@ class MercadoLivreCollector(Collector):
     store = "mercadolivre"
     supports_sweep = True
     supports_refresh = True
+    refresh_por_catalogo = True  # a fila rápida manda ids de produto do catálogo, não de anúncio
 
     def __init__(self, client_id: str, client_secret: str, token_path: Path, max_concurrency: int = 4,
                  limiter: Optional[RateLimiter] = None):
@@ -108,6 +103,8 @@ class MercadoLivreCollector(Collector):
         self.sem = asyncio.Semaphore(max_concurrency)
         self.limiter = limiter
         self._sleep = asyncio.sleep  # trocado nos testes para não esperar de verdade
+        self._produtos: dict[str, tuple[str, str]] = {}  # cache: id do produto -> (nome, foto)
+        self._aviso_itens = False
 
     async def _get(self, path: str, params: dict | None = None, fila: str = "normal",
                    timeout: float | None = None, penalizar: bool = True) -> dict | list:
@@ -146,47 +143,62 @@ class MercadoLivreCollector(Collector):
             dur = self.limiter.penalize(motivo)
             log.warning("Mercado Livre pausado por %d min: %s", dur // 60, motivo)
 
-    async def _search_pages(self, params: dict, watch: Watch, fila: str = "normal") -> list[Offer]:
+    # ---------- catálogo ----------
+    # A busca de anúncios (/sites/MLB/search) e a leitura direta (/items) dão 403 para apps comuns;
+    # o catálogo é liberado e mostra todos os vendedores do MESMO produto lado a lado (ótimo para achar bug).
+    async def _produto(self, pid: str, fila: str) -> tuple[str, str]:
+        """Nome e foto do produto do catálogo (em cache: não mudam)."""
+        if pid not in self._produtos:
+            try:
+                p = await self._get(f"/products/{pid}", fila=fila, penalizar=False)
+            except (CollectorError, httpx.HTTPError):
+                p = {}
+            pics = p.get("pictures") or [{}]
+            self._produtos[pid] = (p.get("name") or pid, (pics[0].get("url") or "").replace("http://", "https://"))
+        return self._produtos[pid]
+
+    async def _vendedores(self, pid: str, watch: Watch, fila: str = "normal") -> list[Offer]:
+        """Todos os vendedores de um produto do catálogo."""
+        nome, thumb = await self._produto(pid, fila)
+        try:
+            data = await self._get(f"/products/{pid}/items", {"limit": 100}, fila=fila, penalizar=False)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:  # produto sem vendedor ativo
+                return []
+            raise
+        return [o for o in (_to_offer(it, watch, pid, nome, thumb) for it in data.get("results", [])) if o]
+
+    async def _mais_vendidos(self, categoria: str) -> list[str]:
+        try:
+            data = await self._get(f"/highlights/{SITE}/category/{categoria}", penalizar=False)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:  # categoria sem ranking de mais vendidos
+                return []
+            raise
+        return [c["id"] for c in data.get("content", []) if c.get("type") == "PRODUCT"]
+
+    async def _de_produtos(self, pids: list[str], watch: Watch, fila: str = "normal") -> list[Offer]:
         offers: list[Offer] = []
-        for page in range(max(1, watch.max_pages)):
-            data = await self._get(f"/sites/{SITE}/search", {**params, "limit": 50, "offset": page * 50},
-                                   fila=fila)
-            results = data.get("results", [])
-            offers += [o for o in (_to_offer(it, watch) for it in results) if o]
-            if len(results) < 50:
-                break
+        for pid in dict.fromkeys(pids):
+            offers += await self._vendedores(pid, watch, fila)
         return offers
-
-    async def search(self, watch: Watch) -> list[Offer]:
-        params = {}
-        if watch.query:
-            params["q"] = watch.query
-        if watch.category:
-            params["category"] = watch.category
-        return await self._search_pages(params, watch)
-
-    async def _items(self, ids: list[str], watch: Watch, fila: str = "normal") -> list[Offer]:
-        offers: list[Offer] = []
-        for i in range(0, len(ids), 20):
-            data = await self._get("/items", {"ids": ",".join(ids[i:i + 20]), "attributes": ITEM_FIELDS},
-                                   fila=fila)
-            for entry in data:
-                if entry.get("code") == 200:
-                    o = _to_offer(entry.get("body", {}), watch)
-                    if o:
-                        offers.append(o)
-        return offers
-
-    async def items(self, watch: Watch) -> list[Offer]:
-        return await self._items(watch.item_ids, watch)
 
     async def collect(self, watch: Watch) -> list[Offer]:
-        out: list[Offer] = []
-        if watch.item_ids:
-            out += await self.items(watch)
-        if watch.query or watch.category:
-            out += await self.search(watch)
-        return out
+        if watch.item_ids and not self._aviso_itens:
+            self._aviso_itens = True
+            log.warning("ML: leitura de anúncio avulso (itens=[...]) é bloqueada pela API; use busca ou categoria")
+        pids: list[str] = []
+        if watch.query:
+            for page in range(max(1, watch.max_pages)):
+                data = await self._get("/products/search", {"status": "active", "site_id": SITE,
+                                                            "q": watch.query, "limit": 10, "offset": page * 10})
+                res = data.get("results", [])
+                pids += [r["id"] for r in res if r.get("id")]
+                if len(res) < 10:
+                    break
+        if watch.category:
+            pids += await self._mais_vendidos(watch.category)
+        return await self._de_produtos(pids, watch)
 
     # ---------- varredura ----------
     async def _category_dump(self) -> dict[str, list[str]]:
@@ -199,33 +211,29 @@ class MercadoLivreCollector(Collector):
         return {cid: [c["id"] for c in (node.get("children_categories") or [])] for cid, node in data.items()}
 
     async def sweep_units(self, watch: Watch) -> list[str]:
-        """Categorias finais (sem filhas) do MLB, ou das categorias escolhidas na regra."""
-        roots = watch.sweep_categories or [c["id"] for c in await self._get(f"/sites/{SITE}/categories")]
+        """Categorias do 2º nível (algumas centenas): cada uma tem seu ranking de mais vendidos.
+        Com categorias escolhidas na regra, usa exatamente elas."""
+        if watch.sweep_categories:
+            return list(watch.sweep_categories)
+        roots = [c["id"] for c in await self._get(f"/sites/{SITE}/categories")]
         tree = await self._category_dump()
-        leaves: list[str] = []
-        stack, seen = list(reversed(roots)), set()
-        while stack:
-            cid = stack.pop()
-            if cid in seen:
-                continue
-            seen.add(cid)
-            if cid in tree:
-                kids = tree[cid]
+        units: list[str] = []
+        for root in roots:
+            if root in tree:
+                kids = tree[root]
             else:
-                node = await self._get(f"/categories/{cid}")
+                node = await self._get(f"/categories/{root}")
                 kids = [c["id"] for c in (node.get("children_categories") or [])]
-            if kids:
-                stack.extend(reversed(kids))
-            else:
-                leaves.append(cid)
-        return leaves
+            units += kids or [root]
+        return list(dict.fromkeys(units))
 
     async def sweep(self, unit: str, watch: Watch) -> list[Offer]:
-        # Do mais barato para o mais caro: um preço com bug aparece no topo da categoria.
-        return await self._search_pages({"category": unit, "sort": "price_asc"}, watch)
+        # Mais vendidos da categoria e, de cada um, todos os vendedores: um preço fora da curva salta aos olhos.
+        return await self._de_produtos(await self._mais_vendidos(unit), watch)
 
     async def refresh(self, item_ids: list[str]) -> list[Offer]:
-        return await self._items(item_ids, Watch(name="Fila rápida", store=self.store), fila="rapida")
+        """Recebe ids de PRODUTO do catálogo (refresh_por_catalogo) e relê todos os vendedores."""
+        return await self._de_produtos(item_ids, Watch(name="Fila rápida", store=self.store), fila="rapida")
 
     async def seller_info(self, offer: Offer) -> Optional[SellerInfo]:
         if not offer.seller_id:
@@ -246,11 +254,13 @@ class MercadoLivreCollector(Collector):
                           registered_days=days, status=site_status)
 
     async def confirm(self, offer: Offer) -> Optional[Offer]:
-        it = await self._get(f"/items/{offer.item_id}", {"attributes": ITEM_FIELDS})
+        """Relê o produto do catálogo e acha o anúncio do vendedor. None se ele saiu do produto."""
+        if not offer.catalog_id:
+            return offer
         w = Watch(name=offer.watch, store=self.store)
-        fresh = _to_offer(it, w)
+        fresh = next((o for o in await self._vendedores(offer.catalog_id, w) if o.item_id == offer.item_id), None)
         if fresh:
-            fresh.seller_name = fresh.seller_name or offer.seller_name
+            fresh.seller_name = offer.seller_name
             fresh.confirmed = True
         return fresh
 

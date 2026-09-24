@@ -203,7 +203,7 @@ class DatabaseTests(unittest.TestCase):
 
 
 class MercadoLivreTests(unittest.TestCase):
-    def test_busca_e_refresh_de_token(self):
+    def test_catalogo_e_refresh_de_token(self):
         calls = []
 
         def handler(req: httpx.Request):
@@ -211,16 +211,14 @@ class MercadoLivreTests(unittest.TestCase):
             if req.url.path == "/oauth/token":
                 return httpx.Response(200, json={"access_token": "NOVO", "refresh_token": "R2", "expires_in": 21600})
             assert req.headers["authorization"] == "Bearer NOVO"
-            if req.url.path == "/sites/MLB/search":
+            if req.url.path == "/products/search":
+                return httpx.Response(200, json={"results": [{"id": "MLBP1"}]})
+            if req.url.path == "/products/MLBP1":
+                return httpx.Response(200, json={"name": "iPhone 15", "pictures": [{"url": "http://img/1.jpg"}]})
+            if req.url.path == "/products/MLBP1/items":
                 return httpx.Response(200, json={"results": [
-                    {"id": "MLB1", "title": "iPhone", "price": 399.0, "original_price": 4999.0,
-                     "permalink": "https://ml/1", "thumbnail": "http://img/1.jpg", "category_id": "MLB1055",
-                     "shipping": {"free_shipping": True}, "available_quantity": 3}]})
-            if req.url.path == "/items":
-                return httpx.Response(200, json=[
-                    {"code": 200, "body": {"id": "MLB2", "title": "PS5", "price": 3500, "permalink": "https://ml/2",
-                                           "status": "active", "shipping": {}}},
-                    {"code": 404, "body": {}}])
+                    {"item_id": "MLB1", "price": 399.0, "original_price": 4999.0, "seller_id": 7,
+                     "shipping": {"free_shipping": True}, "condition": "new"}]})
             return httpx.Response(404)
 
         async def run():
@@ -233,8 +231,7 @@ class MercadoLivreTests(unittest.TestCase):
                 orig_api = mlmod.API
                 mlmod.API = "https://api.test"
                 try:
-                    offers = await c.collect(Watch(name="w", store="mercadolivre", query="iphone",
-                                                   item_ids=["MLB2", "MLB9"]))
+                    offers = await c.collect(Watch(name="w", store="mercadolivre", query="iphone"))
                 finally:
                     mlmod.API = orig_api
                     await c.close()
@@ -242,10 +239,9 @@ class MercadoLivreTests(unittest.TestCase):
                 return offers, saved
 
         offers, saved = asyncio.run(run())
-        self.assertEqual({o.item_id for o in offers}, {"MLB1", "MLB2"})
-        ml1 = next(o for o in offers if o.item_id == "MLB1")
-        self.assertTrue(ml1.free_shipping)
-        self.assertTrue(ml1.thumbnail.startswith("https://"))
+        self.assertEqual([o.item_id for o in offers], ["MLB1"])
+        self.assertTrue(offers[0].free_shipping)
+        self.assertTrue(offers[0].thumbnail.startswith("https://"))
         self.assertEqual(saved["refresh_token"], "R2")
         self.assertEqual(calls.count("/oauth/token"), 1)
 
