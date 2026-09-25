@@ -23,7 +23,8 @@ TREE = "/api/catalog_system/pub/category/tree/3"
 PAGINA = 50  # a VTEX devolve no máximo 50 produtos por chamada (_from.._to)
 
 
-def _to_offers(prod: dict, store: str, watch: Watch, only: Optional[set[str]] = None) -> list[Offer]:
+def _to_offers(prod: dict, store: str, watch: Watch, base: str, only: Optional[set[str]] = None) -> list[Offer]:
+    """`base` = https://domínio da loja, para montar o link do carrinho."""
     offers = []
     for item in prod.get("items") or []:
         sku = str(item.get("itemId", ""))
@@ -56,6 +57,7 @@ def _to_offers(prod: dict, store: str, watch: Watch, only: Optional[set[str]] = 
             catalog_id=item.get("ean") or "",
             brand=prod.get("brand") or "",
             official_seller=str(seller.get("sellerId")) == "1",  # "1" é a própria loja; o resto é marketplace
+            cart_url=f"{base}/checkout/cart/add?sku={sku}&qty=1&seller={seller.get('sellerId') or 1}&redirect=true",
         ))
     return offers
 
@@ -109,7 +111,7 @@ class VtexCollector(Collector):
             data = await self._get(SEARCH, params + [("O", "OrderByPriceASC"), ("_from", ini),
                                                      ("_to", ini + PAGINA - 1)], fila=fila)
             for prod in data:
-                offers += _to_offers(prod, self.store, watch)
+                offers += _to_offers(prod, self.store, watch, self.base)
             if len(data) < PAGINA:
                 break
         return offers
@@ -154,7 +156,7 @@ class VtexCollector(Collector):
             data = await self._get(SEARCH, [("fq", f"skuId:{s}") for s in lote] + [("_from", 0), ("_to", PAGINA - 1)],
                                    fila=fila)
             for prod in data:
-                offers += _to_offers(prod, self.store, watch, only=set(lote))
+                offers += _to_offers(prod, self.store, watch, self.base, only=set(lote))
         return offers
 
     async def refresh(self, item_ids: list[str]) -> list[Offer]:

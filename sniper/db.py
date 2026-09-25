@@ -60,7 +60,7 @@ def ean_valido(ean: str) -> bool:
 MIGRATIONS = {
     "items": {"catalog_id": "TEXT", "seller_id": "TEXT", "seller_name": "TEXT", "condition": "TEXT"},
     "alerts": {"seller_id": "TEXT", "seller_name": "TEXT", "confirmed": "INTEGER DEFAULT 0",
-               "catalog_id": "TEXT"},
+               "catalog_id": "TEXT", "cart_url": "TEXT"},
     "prices": {"reads": "INTEGER DEFAULT 1"},
 }
 
@@ -148,12 +148,12 @@ class Database:
         with self.lock, self.conn:
             cur = self.conn.execute(
                 """INSERT INTO alerts (store,item_id,title,url,thumbnail,watch,price,ref_price,drop_pct,
-                   score,level,reasons,free_shipping,ts,seller_id,seller_name,confirmed,catalog_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   score,level,reasons,free_shipping,ts,seller_id,seller_name,confirmed,catalog_id,cart_url)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (o.store, o.item_id, o.title, o.url, o.thumbnail, o.watch, o.price, v.ref_price,
                  v.drop_pct, v.score, v.level, json.dumps(v.reasons, ensure_ascii=False),
                  int(o.free_shipping), o.collected_at, o.seller_id, o.seller_name, int(o.confirmed),
-                 o.catalog_id),
+                 o.catalog_id, o.cart_url),
             )
             alert_id = cur.lastrowid
         return self.get_alert(alert_id)

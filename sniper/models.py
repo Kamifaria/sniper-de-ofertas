@@ -27,6 +27,7 @@ class Offer:
     brand: str = ""                  # marca informada pela loja ("" = não informou)
     official_seller: Optional[bool] = None  # loja oficial / a própria loja vende (None = não sabemos)
     confirmed: bool = False          # preço reconfirmado direto no anúncio antes do alerta
+    cart_url: str = ""               # link que já põe o item no carrinho ("" = loja não tem)
     collected_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict:

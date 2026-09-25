@@ -26,6 +26,8 @@ def format_text(a: dict) -> str:
     if a.get("reasons"):
         lines.append("• " + "\n• ".join(a["reasons"]))
     lines.append(a["url"])
+    if a.get("cart_url"):
+        lines.append(f"🛒 Pôr no carrinho: {a['cart_url']}")
     return "\n".join(lines)
 
 
@@ -79,6 +81,8 @@ class WindowsNotifier:
             n.set_audio(audio.LoopingAlarm if alert["level"] in ("GRATIS", "CRITICO") else audio.Default,
                         loop=False)
             n.add_actions(label="Abrir oferta", launch=alert["url"])
+            if alert.get("cart_url"):
+                n.add_actions(label="🛒 Pôr no carrinho", launch=alert["cart_url"])
             n.show()
 
         await asyncio.to_thread(_show)

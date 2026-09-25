@@ -40,7 +40,13 @@ def _k(d: Any, *chaves: str) -> Any:
     return d
 
 
-def _to_offer(it: dict, watch: Watch) -> Optional[Offer]:
+def _carrinho(asin: str, tag: str) -> str:
+    """Formulário oficial de "adicionar ao carrinho" da Amazon, já com a tag de afiliado."""
+    url = f"https://{MARKETPLACE}/gp/aws/cart/add.html?ASIN.1={asin}&Quantity.1=1"
+    return f"{url}&AssociateTag={tag}" if tag else url
+
+
+def _to_offer(it: dict, watch: Watch, tag: str = "") -> Optional[Offer]:
     listings = _k(it, "offersV2", "listings") or []
     listing = next((x for x in listings if _k(x, "isBuyBoxWinner")), listings[0] if listings else None)
     preco = _k(listing, "price", "money", "amount")
@@ -50,9 +56,10 @@ def _to_offer(it: dict, watch: Watch) -> Optional[Offer]:
     vendedor = _k(listing, "merchantInfo", "name") or ""
     eans = _k(it, "itemInfo", "externalIds", "eans", "displayValues") or []
     condicao = (_k(listing, "condition", "value") or "").lower()
+    asin = str(it.get("asin", ""))
     return Offer(
         store="amazon",
-        item_id=str(it.get("asin", "")),
+        item_id=asin,
         title=_k(it, "itemInfo", "title", "displayValue") or "",
         price=float(preco),
         original_price=float(de) if de and de > preco else None,
@@ -65,6 +72,7 @@ def _to_offer(it: dict, watch: Watch) -> Optional[Offer]:
         catalog_id=eans[0] if eans else "",
         brand=_k(it, "itemInfo", "byLineInfo", "brand", "displayValue") or "",
         official_seller=vendedor.lower().startswith("amazon"),  # vendido pela própria Amazon
+        cart_url=_carrinho(asin, tag),
     )
 
 
@@ -137,7 +145,7 @@ class AmazonCollector(Collector):
             data = await self._post("getItems", {"itemIds": asins[i:i + LOTE], "itemIdType": "ASIN",
                                                  "condition": "New"}, fila=fila)
             for it in _k(data, "itemsResult", "items") or []:
-                o = _to_offer(it, watch)
+                o = _to_offer(it, watch, self.tag)
                 if o:
                     offers.append(o)
         return offers
@@ -153,7 +161,7 @@ class AmazonCollector(Collector):
                 base["minPrice"] = int(round(watch.min_price * 100))  # em centavos
             for page in range(1, min(max(1, watch.max_pages), 10) + 1):
                 itens = _k(await self._post("searchItems", {**base, "itemPage": page}), "searchResult", "items") or []
-                offers += [o for o in (_to_offer(it, watch) for it in itens) if o]
+                offers += [o for o in (_to_offer(it, watch, self.tag) for it in itens) if o]
                 if len(itens) < LOTE:
                     break
         return offers

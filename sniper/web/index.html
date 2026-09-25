@@ -191,6 +191,7 @@ function card(a, isNew) {
       <div>${a.ref_price ? `<span class="ref">${brl(a.ref_price)}</span>` : ""} ${a.drop_pct ? `<span class="drop">-${Math.round(a.drop_pct*100)}%</span>` : ""}</div>
       <div class="actions">
         <button class="btn primary" data-open="${a.id}">Abrir oferta</button>
+        ${a.cart_url ? `<button class="btn primary" data-cart="${a.id}" title="Abre a loja com o item já no carrinho">🛒 Carrinho</button>` : ""}
         <button class="btn" data-st="comprado" data-id="${a.id}">Comprei</button>
         <button class="btn" data-st="ignorado" data-id="${a.id}">Ignorar</button>
         ${a.seller_id ? `<button class="btn" data-st="loja_teste" data-id="${a.id}" title="Bloqueia esta loja: nunca mais lê anúncios dela">🚫 Loja teste</button>` : ""}
@@ -331,9 +332,9 @@ document.addEventListener("click", async e => {
     document.querySelectorAll("[data-lvl]").forEach(c => c.classList.toggle("on", c === t));
     state.lvl = t.dataset.lvl; render();
   } else if (t.id === "onlyNew") { state.onlyNew = !state.onlyNew; t.classList.toggle("on", state.onlyNew); render(); }
-  else if (t.dataset.open) {
-    const a = state.alerts.find(x => x.id == t.dataset.open);
-    await api("/api/open", {url: a.url});
+  else if (t.dataset.open || t.dataset.cart) {
+    const a = state.alerts.find(x => x.id == (t.dataset.open || t.dataset.cart));
+    await api("/api/open", {url: t.dataset.cart ? a.cart_url : a.url});
     if (a.status === "novo") { a.status = "visto"; api(`/api/alerts/${a.id}/status`, {status: "visto"}); render(); }
   } else if (t.dataset.st) {
     const a = state.alerts.find(x => x.id == t.dataset.id);
