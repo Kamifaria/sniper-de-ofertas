@@ -69,7 +69,7 @@ class Verdict:
     score: int
     level: str                       # GRATIS, CRITICO, ALTO, MEDIO, NENHUM
     reasons: list[str]
-    ref_price: Optional[float]       # preço de referência (mediana do histórico, concorrentes ou "de")
+    ref_price: Optional[float]       # preço de referência (mediana do histórico ou concorrentes)
     drop_pct: Optional[float]        # queda em relação à referência (0-1)
 
     @property

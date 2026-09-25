@@ -45,9 +45,15 @@ class DetectorTests(unittest.TestCase):
         v = evaluate(offer(550.0), self.hist)  # ~45% abaixo + queda brusca
         self.assertIn(v.level, ("MEDIO", "ALTO"))
 
-    def test_desconto_de_por_sozinho_tem_teto(self):
+    def test_desconto_de_por_sozinho_nao_alerta(self):
         v = evaluate(offer(100.0, orig=1000.0), [])
-        self.assertLessEqual(v.score, 75)
+        self.assertEqual((v.score, v.level, v.ref_price), (0, "NENHUM", None))
+
+    def test_desconto_de_por_nao_soma_pontos(self):
+        com = evaluate(offer(550.0, orig=5000.0), self.hist)
+        sem = evaluate(offer(550.0), self.hist)
+        self.assertEqual(com.score, sem.score)
+        self.assertFalse(any("OFF" in r for r in com.reasons))
 
     def test_piso_da_regra(self):
         w = Watch(name="w", store="t", floor=2500)
@@ -75,6 +81,32 @@ class PeerTests(unittest.TestCase):
         v = evaluate(offer(550.0), [1000.0, 1000.0, 1000.0], peers=[560.0, 545.0, 570.0])
         self.assertEqual(v.level, "NENHUM")
         self.assertTrue(any("Concorrentes já vendem" in r for r in v.reasons))
+
+
+class VirgulaErradaTests(unittest.TestCase):
+    peers = [4990.0, 5010.0]  # só 2 concorrentes: sem o sinal da vírgula fica em ALTO
+
+    def test_um_decimo_do_preco_vira_critico(self):
+        v = evaluate(offer(499.9), [], peers=self.peers)
+        self.assertEqual(v.level, "CRITICO")
+        self.assertTrue(any("vírgula" in r for r in v.reasons))
+
+    def test_um_centesimo_do_preco(self):
+        v = evaluate(offer(49.99), [], peers=self.peers)
+        self.assertTrue(any("vírgula" in r for r in v.reasons))
+
+    def test_queda_grande_que_nao_e_vírgula(self):
+        v = evaluate(offer(700.0), [], peers=self.peers)
+        self.assertEqual(v.level, "ALTO")
+        self.assertFalse(any("vírgula" in r for r in v.reasons))
+
+    def test_mercado_inteiro_no_preco_novo_nao_e_vírgula(self):
+        v = evaluate(offer(500.0), [5000.0, 5000.0, 5000.0], peers=[505.0, 495.0, 510.0])
+        self.assertFalse(any("vírgula" in r for r in v.reasons))
+
+    def test_de_por_de_mentira_nao_conta_como_vírgula(self):
+        v = evaluate(offer(100.0, orig=1000.0), [])
+        self.assertFalse(any("vírgula" in r for r in v.reasons))
 
 
 class FilterTests(unittest.TestCase):

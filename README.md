@@ -92,8 +92,10 @@ Cada bloco `[[vigiar]]` no `config.toml` é uma regra:
 | queda vs mediana de 30 dias (85% / 70% / 55% / 40% / 25%) | 75 / 62 / 50 / 40 / 15 |
 | queda brusca vs última coleta (≥50% / ≥30%) | +20 / +10 |
 | abaixo do piso da regra | +20 a +30 |
-| "de/por" anunciado pela loja (≥80% / 60% / 45%) | +25 / +15 / +8 |
+| vírgula errada: preço é ~1/10 ou ~1/100 do normal (folga de 8%) | +20 |
 | frete grátis (quando já há queda forte) | +5 |
+
+O "de/por" anunciado pela loja **não soma pontos**: é marketing. Sem histórico, concorrentes ou piso da regra, só item de graça vira alerta.
 
 Níveis: **CRÍTICO** ≥ 90 · **ALTO** ≥ 70 · **MÉDIO** ≥ 50. O padrão é o modo **"só bugs"** (`nota_minima_alerta = 70`): promoção comum de 40-50% não aparece.
 

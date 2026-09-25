@@ -6,7 +6,8 @@ Combina vários sinais numa nota de 0 a 100:
   * queda em relação aos outros vendedores do mesmo produto (catálogo)
   * queda brusca em relação à última leitura
   * preço abaixo do piso configurado na regra
-  * desconto "de/por" anunciado pela loja (peso baixo: muito marketing)
+  * preço que é 1/10 ou 1/100 do normal (vírgula no lugar errado)
+O desconto "de/por" anunciado pela loja não soma pontos: é marketing.
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ class DetectorConfig:
     min_peers_outras_lojas: int = 3   # mesmo código de barras em outras lojas: com 2 ainda erra muito
     market_band: float = 0.30         # concorrente até 30% acima (ou mais barato) conta como "vende perto"
     market_min_peers: int = 2         # ...e com tantos vendendo perto, é preço de mercado, não bug
+    typo_tolerance: float = 0.08      # 1/10 ou 1/100 do preço normal, com 8% de folga, conta como vírgula errada
     level_critico: int = 90
     level_alto: int = 70
     level_medio: int = 50
@@ -47,6 +49,15 @@ def _drop_points(drop: Optional[float]) -> int:
         if drop >= limit:
             return pts
     return 0
+
+
+def _fracao_de_digitacao(price: float, refs: Sequence[float], tol: float) -> Optional[int]:
+    """10 ou 100 se o preço for ~1/10 ou ~1/100 de alguma referência (vírgula deslocada)."""
+    for ref in refs:
+        for fracao in (10, 100):
+            if abs(price * fracao / ref - 1) <= tol:
+                return fracao
+    return None
 
 
 def evaluate(
@@ -73,7 +84,7 @@ def evaluate(
 
     # 1) De graça (sem referência também conta: item novo a R$ 0,00 é suspeito; preço simbólico fixo é filtrado no motor)
     if price <= cfg.free_threshold and (typical is None or typical >= cfg.free_min_ref):
-        ref = typical or offer.original_price
+        ref = typical
         return Verdict(100, "GRATIS", ["Preço simbólico: R$ " + f"{price:.2f}".replace(".", ",")], ref, _drop(price, ref))
 
     # 2) Queda vs histórico do próprio anúncio e vs concorrentes do mesmo produto
@@ -99,8 +110,14 @@ def evaluate(
     elif p_peer >= 62 and len(peers) >= 3:
         score += 15; reasons.append("Muito abaixo de vários concorrentes")
     # Caiu no histórico, mas os concorrentes vendem pelo mesmo preço: é queda de mercado, não bug.
-    if p_hist >= 40 and d_peer is not None and d_peer < 0.15:
+    mercado = p_hist >= 40 and d_peer is not None and d_peer < 0.15
+    if mercado:
         score -= 25; reasons.append("Concorrentes já vendem por preço parecido")
+    # Vírgula no lugar errado: R$ 499,90 no lugar de R$ 4.999,00 é o bug mais comum.
+    refs = [r for r, pts in ((hist_med, p_hist), (peer_med, p_peer)) if pts]
+    fracao = None if mercado else _fracao_de_digitacao(price, refs, cfg.typo_tolerance)
+    if fracao:
+        score += 20; reasons.append(f"Parece vírgula errada: 1/{fracao} do preço normal")
 
     if peer_med and p_peer >= p_hist:
         ref_price, drop_pct = peer_med, d_peer
@@ -121,15 +138,7 @@ def evaluate(
         score += 30 if below >= 0.5 else 20
         reasons.append(f"Abaixo do piso de R$ {watch.floor:,.2f}")
 
-    # 5) Desconto anunciado pela loja (de/por) — peso baixo, muito marketing
-    if offer.original_price and offer.original_price > price:
-        disc = _drop(price, offer.original_price) or 0
-        if ref_price is None:
-            ref_price, drop_pct = offer.original_price, disc
-        for limit, pts in ((0.80, 25), (0.60, 15), (0.45, 8)):
-            if disc >= limit:
-                score += pts; reasons.append(f"Loja anuncia {disc:.0%} OFF")
-                break
+    # O "de/por" que a loja anuncia não conta: é marketing, não referência de preço.
 
     # Bônus pequeno: frete grátis em queda forte
     if offer.free_shipping and score >= 40:
