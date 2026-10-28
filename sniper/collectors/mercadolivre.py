@@ -16,6 +16,7 @@ import httpx
 
 from datetime import datetime, timezone
 
+from .. import segredos
 from ..models import Offer, SellerInfo, Watch
 from ..ratelimit import RateLimiter
 from .base import Collector, CollectorError
@@ -27,11 +28,15 @@ SITE = "MLB"  # Brasil
 
 
 class TokenStore:
-    def __init__(self, path: Path, client_id: str, client_secret: str):
+    def __init__(self, path: Path, client_id: str, client_secret: str, cofre: bool = False):
         self.path = path
         self.client_id = client_id
         self.client_secret = client_secret
-        self.data: dict = json.loads(path.read_text()) if path.exists() else {}
+        self.cofre = cofre  # True: tokens no cofre do Windows em vez de arquivo
+        if cofre:
+            self.data: dict = json.loads(segredos.ler("ml_token") or "{}")
+        else:
+            self.data = json.loads(path.read_text()) if path.exists() else {}
         self._lock = asyncio.Lock()
 
     @property
@@ -45,6 +50,9 @@ class TokenStore:
             "expires_at": time.time() + int(payload.get("expires_in", 21600)) - 120,
             "user_id": payload.get("user_id", self.data.get("user_id")),
         }
+        if self.cofre:
+            segredos.guardar("ml_token", json.dumps(self.data))
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self.data, indent=2))
 
@@ -101,8 +109,8 @@ class MercadoLivreCollector(Collector):
     refresh_por_catalogo = True  # a fila rápida manda ids de produto do catálogo, não de anúncio
 
     def __init__(self, client_id: str, client_secret: str, token_path: Path, max_concurrency: int = 4,
-                 limiter: Optional[RateLimiter] = None):
-        self.tokens = TokenStore(token_path, client_id, client_secret)
+                 limiter: Optional[RateLimiter] = None, cofre: bool = False):
+        self.tokens = TokenStore(token_path, client_id, client_secret, cofre=cofre)
         self.client = httpx.AsyncClient(timeout=15, headers={"user-agent": "sniper-ofertas/0.1"})
         self.sem = asyncio.Semaphore(max_concurrency)
         self.limiter = limiter

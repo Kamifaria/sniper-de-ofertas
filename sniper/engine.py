@@ -390,7 +390,7 @@ class Engine:
     async def _housekeeping(self) -> None:
         while True:
             await asyncio.sleep(3600)
-            self.db.prune()
+            self.db.prune(self.s.retention_days)
 
     async def run_watch(self, w: Watch) -> int:
         st = self.watch_status[w.name]

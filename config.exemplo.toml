@@ -7,6 +7,7 @@
 porta = 8765
 banco = "data/sniper.db"
 nota_minima_alerta = 70      # modo "só bugs": 70 = queda de ~70%+ ou queda brusca (50 mostra promoções)
+retencao_dias = 30           # apaga histórico, alertas e itens mais velhos que isso
 cooldown_minutos = 30        # não repete o mesmo descarte nesse tempo
 repetir_alerta_horas = 24    # mesmo item e mesmo preço não alerta de novo nesse prazo (só se cair +5%)
 

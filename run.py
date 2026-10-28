@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import socket
 import sys
 import threading
@@ -21,10 +22,10 @@ from pathlib import Path
 
 import uvicorn
 
-from sniper import config, winsys
+from sniper import config, paths, winsys
 from sniper.server import create_app
 
-BASE = Path(__file__).parent
+BASE = paths.dados_dir()
 
 
 def _ja_rodando(port: int) -> bool:
@@ -55,6 +56,8 @@ def _abrir_janela_existente(url: str, navegador: bool) -> None:
 
 
 def main() -> None:
+    if sys.stdout is None:  # .exe sem console: print() e logging no terminal não têm para onde ir
+        sys.stdout = sys.stderr = open(os.devnull, "w")
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=str(BASE / "config.toml"))
     ap.add_argument("--navegador", action="store_true")
@@ -73,6 +76,8 @@ def main() -> None:
         return
 
     cfg_path = Path(args.config)
+    if paths.empacotado():
+        paths.garantir_config(cfg_path)
     if not cfg_path.exists():
         print("config.toml não encontrado. Copie config.exemplo.toml para config.toml e edite.")
         sys.exit(1)
@@ -129,5 +134,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    (BASE / "data").mkdir(exist_ok=True)
+    (BASE / "data").mkdir(parents=True, exist_ok=True)
     main()

@@ -3,3 +3,4 @@ starlette>=0.37
 uvicorn>=0.29
 pywebview>=5.0
 winotify>=1.1; sys_platform == "win32"
+keyring>=25.0

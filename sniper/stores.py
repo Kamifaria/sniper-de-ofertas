@@ -25,8 +25,9 @@ class LojaInfo:
 def _mercadolivre(s: Settings, lim: RateLimiter) -> Optional[Collector]:
     if not s.ml_client_id:
         return None
-    return MercadoLivreCollector(s.ml_client_id, s.ml_client_secret,
-                                 s.base_dir / "data" / "ml_token.json", limiter=lim)
+    arq = s.base_dir / "data" / "ml_token.json"
+    # instalação antiga (token em arquivo) segue como está; instalação nova usa o cofre do Windows
+    return MercadoLivreCollector(s.ml_client_id, s.ml_client_secret, arq, limiter=lim, cofre=not arq.exists())
 
 
 def _amazon(s: Settings, lim: RateLimiter) -> Optional[Collector]:
@@ -133,8 +134,8 @@ VTEX = [
 ]
 
 LOJAS: dict[str, LojaInfo] = {i.chave: i for i in [
-    LojaInfo("mercadolivre", "Mercado Livre", True, _mercadolivre, 60,
-             "Preencha [mercadolivre] no config.toml e rode python auth_ml.py"),
+    LojaInfo("mercadolivre", "ML", True, _mercadolivre, 60,
+             "Clique em \"Conectar ML\" no painel e cadastre a sua conta de desenvolvedor"),
     LojaInfo("amazon", "Amazon", True, _amazon, 50,
              "Preencha [amazon] no config.toml: credencial da Creators API e tag de afiliado"),
     *(LojaInfo(chave, nome, False, _vtex(chave, dominio), 30) for chave, nome, dominio in VTEX),

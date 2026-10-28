@@ -3,3 +3,7 @@ data/
 config.toml
 __pycache__/
 *.pyc
+build/
+dist/
+Instalador/
+*.pem

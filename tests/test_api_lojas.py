@@ -29,8 +29,8 @@ class ApiLojasTests(unittest.TestCase):
                 eng.db.conn.close()
         ml = next(x for x in lojas if x["chave"] == "mercadolivre")
         self.assertEqual((ml["nome"], ml["oficial"], ml["ativa"], ml["configurada"]),
-                         ("Mercado Livre", True, True, False))
-        self.assertIn("auth_ml.py", ml["motivo"])
+                         ("ML", True, True, False))
+        self.assertIn("Conectar ML", ml["motivo"])
         self.assertEqual(ml["limite"]["limite"], 60)
         self.assertEqual(ml["erro"], "sem internet")
 

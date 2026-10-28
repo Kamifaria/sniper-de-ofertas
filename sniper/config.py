@@ -9,6 +9,7 @@ from typing import Optional
 from .detector import DetectorConfig
 from .filters import FilterConfig
 from .models import Watch
+from . import segredos
 
 
 @dataclass
@@ -25,6 +26,7 @@ class Settings:
     port: int = 8765
     min_alert_score: int = 70        # modo "só bugs": 70 = queda de ~70%+ ou queda brusca
     cooldown_min: int = 30
+    retention_days: int = 30         # apaga preços, alertas e itens mais velhos que isso (termos do ML)
     repeat_alert_h: int = 24         # mesmo item e mesmo preço não alerta de novo nesse prazo
     valor_alto: float = 300.0        # fila rápida: itens a partir deste preço
     intervalo_rapido: int = 120      # fila rápida: segundos entre voltas
@@ -141,18 +143,19 @@ def load(path: str | Path) -> Settings:
         port=int(g.get("porta", 8765)),
         min_alert_score=int(g.get("nota_minima_alerta", 70)),
         cooldown_min=int(g.get("cooldown_minutos", 30)),
+        retention_days=int(g.get("retencao_dias", 30)),
         repeat_alert_h=int(g.get("repetir_alerta_horas", 24)),
         valor_alto=float(vr.get("valor_alto", 300)),
         intervalo_rapido=int(vr.get("intervalo_rapido", 120)),
         max_itens_rapida=int(vr.get("max_itens_rapida", 1000)),
-        ml_client_id=str(ml.get("client_id", "")),
-        ml_client_secret=str(ml.get("client_secret", "")),
-        ml_redirect_uri=str(ml.get("redirect_uri", "")),
+        ml_client_id=str(ml.get("client_id", "")) or segredos.ler("ml_client_id"),
+        ml_client_secret=str(ml.get("client_secret", "")) or segredos.ler("ml_client_secret"),
+        ml_redirect_uri=str(ml.get("redirect_uri", "")) or segredos.ler("ml_redirect_uri"),
         amazon_id=str(amz.get("credencial_id", "")),
         amazon_secret=str(amz.get("credencial_segredo", "")),
         amazon_tag=str(amz.get("tag_afiliado", "")),
         telegram_on=bool(tg.get("ativo", False)),
-        telegram_token=str(tg.get("bot_token", "")),
+        telegram_token=str(tg.get("bot_token", "")) or segredos.ler("telegram_bot_token"),
         telegram_chat_id=str(tg.get("chat_id", "")),
         telegram_min_score=int(tg.get("nota_minima", 70)),
         telegram_resumo=_valida_horario(str(tg.get("resumo_diario", "09:00"))),

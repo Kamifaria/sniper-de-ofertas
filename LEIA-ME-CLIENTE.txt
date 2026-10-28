@@ -1,0 +1,36 @@
+﻿Sniper Oferta – instalação
+
+Programa para Windows 10/11 (64 bits) que vigia preços e avisa quando uma oferta cai muito.
+
+1. Instalar
+1. Execute SniperOferta-Setup-1.0.0.exe. Se o Windows mostrar "O Windows protegeu o seu PC", clique em Mais informações → Executar assim mesmo (o instalador ainda não tem assinatura digital).
+2. Abra o Sniper Oferta pelo Menu Iniciar.
+
+2. Ativar
+Cole a chave de ativação (começa com SNP-) que você recebeu na compra e clique em Ativar. É preciso internet na ativação.
+
+3. Conectar o ML
+O programa usa a sua conta de desenvolvedor, não a do vendedor.
+1. No painel, clique em Conectar ML e siga os passos da janela.
+2. Crie seu app em https://developers.mercadolivre.com.br/devcenter. Dê a ele um nome próprio, sem usar o nome do marketplace.
+3. Use https://www.google.com como Redirect URI e ative o acesso offline.
+4. Cole o Client ID e o Client Secret, clique em Salvar, depois em Autorizar, aceite e cole aqui a URL para onde foi levado.
+
+Seus dados de acesso ficam no cofre do Windows, nunca em arquivo de texto.
+
+4. Usar
+- O painel mostra os alertas de queda de preço. Clique em um alerta para abrir o anúncio.
+- As regras ficam em %APPDATA%\SniperOferta\config.toml (o que vigiar, notas mínimas, Telegram).
+- Os dados de preços são atualizados a cada ciclo de varredura (padrão: 60 minutos) e apagados após 30 dias (retencao_dias).
+
+Problemas comuns
+- Chave inválida / licença venceu / cancelada: Fale com quem vendeu o programa.
+- Não consegui confirmar sua licença: Conecte-se à internet (há tolerância de 7 dias sem conexão).
+- Loja "pausada": O marketplace pediu para reduzir o ritmo. O programa volta sozinho.
+- Sem token / token expirado: Clique em **Conectar ML** e autorize de novo.
+
+Aviso
+O programa só informa o que o marketplace mostra. Não garante lucro nem que o preço seja honrado pelo vendedor. Não é afiliado nem aprovado pelo marketplace.
+
+Desinstalar
+Configurações → Aplicativos → Sniper Oferta → Desinstalar. Seus dados em %APPDATA%\SniperOferta permanecem; apague a pasta se quiser removê-los.

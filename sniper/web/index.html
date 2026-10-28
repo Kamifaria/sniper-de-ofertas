@@ -90,6 +90,9 @@ aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(-
 .modal svg{width:100%;height:240px;display:block}
 .modal .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:8px}
 #lojas{max-height:34%}
+dialog input,#ativacao input{box-sizing:border-box;background:var(--panel2);color:inherit;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font:inherit}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+
 .w.off{opacity:.55}
 .btn.tg{padding:1px 9px;font-size:11.5px}
 .toolbar select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:99px;padding:4px 10px;font:inherit;font-size:13px}
@@ -141,7 +144,7 @@ a.btn{text-decoration:none;font-size:13px;padding:4px 12px}
     <div class="cards" id="cards"></div>
   </section>
   <aside>
-    <h3>Lojas</h3>
+    <h3>Lojas <button class="btn" id="btnML" style="float:right;padding:2px 10px;font-size:12px">Conectar ML</button></h3>
     <div class="watches" id="lojas"></div>
     <h3>Regras de vigilância</h3>
     <div class="watches" id="watches"></div>
@@ -160,6 +163,24 @@ a.btn{text-decoration:none;font-size:13px;padding:4px 12px}
   <div class="foot"><span id="mInfo"></span><button class="btn" onclick="closeModal()">Fechar</button></div>
 </div></div>
 
+<dialog id="dlgML" style="max-width:560px;background:var(--panel);color:inherit;border:1px solid var(--line);border-radius:10px;padding:20px">
+  <h3>Conectar o ML</h3>
+  <ol class="sub" style="line-height:1.6;padding-left:18px">
+    <li>Dê ao seu app um nome próprio (sem usar o nome do marketplace). Entre em <a href="#" data-open-url="https://developers.mercadolivre.com.br/devcenter">developers.mercadolivre.com.br/devcenter</a> e crie um app seu.</li>
+    <li>No app, use como Redirect URI: <code>https://www.google.com</code>. Ative o escopo <code>offline_access</code>.</li>
+    <li>Cole abaixo o Client ID e o Client Secret do app e clique em Salvar.</li>
+    <li>Clique em Autorizar, aceite no ML e cole aqui a URL para onde você foi levado.</li>
+  </ol>
+  <input id="mlId" placeholder="Client ID" style="width:100%;margin:4px 0">
+  <input id="mlSecret" type="password" placeholder="Client Secret (fica guardado no cofre do Windows)" style="width:100%;margin:4px 0">
+  <input id="mlRedir" placeholder="Redirect URI" value="https://www.google.com" style="width:100%;margin:4px 0">
+  <button class="btn" id="mlSalvar">Salvar</button>
+  <button class="btn" id="mlAutorizar" disabled>Autorizar no ML</button>
+  <input id="mlCodigo" placeholder="Cole aqui a URL (ou o código) depois de autorizar" style="width:100%;margin:8px 0 4px">
+  <button class="btn" id="mlEnviar">Concluir</button>
+  <button class="btn" id="mlFechar">Fechar</button>
+  <div id="mlMsg" class="sub" style="margin-top:8px"></div>
+</dialog>
 <script>
 const $ = s => document.querySelector(s);
 const state = {alerts: [], lvl: "", onlyNew: false, sound: true, paused: false, since: 0};
@@ -403,6 +424,67 @@ async function loadBlocked() {
   setInterval(() => api("/api/watches").then(renderWatches), 5000);
   setInterval(() => api("/api/lojas").then(renderLojas), 5000);
   connect();
+})();
+</script>
+<script>
+(() => {
+  const $ = q => document.querySelector(q), dlg = $("#dlgML"), msg = t => $("#mlMsg").textContent = t;
+  let authUrl = "";
+  const post = async (url, body) => {
+    const r = await fetch(url, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)});
+    const j = await r.json(); if (!r.ok) throw new Error(j.erro || r.status); return j;
+  };
+  const mostra = st => {
+    authUrl = st.auth_url; $("#mlAutorizar").disabled = !st.tem_credenciais;
+    if (st.client_id) $("#mlId").value = st.client_id;
+    msg(st.tem_token ? "Conectado. O Sniper já está lendo o ML." : st.tem_credenciais ? "Credenciais salvas. Agora autorize." : "");
+  };
+  $("#btnML").onclick = async () => { dlg.showModal(); mostra(await (await fetch("/api/ml/status")).json()); };
+  $("#mlFechar").onclick = () => dlg.close();
+  $("#mlSalvar").onclick = async () => { try { mostra(await post("/api/ml/credenciais",
+    {client_id: $("#mlId").value, client_secret: $("#mlSecret").value, redirect_uri: $("#mlRedir").value})); $("#mlSecret").value = ""; } catch (e) { msg(e.message); } };
+  $("#mlAutorizar").onclick = () => post("/api/open", {url: authUrl});
+  $("#mlEnviar").onclick = async () => { try { mostra(await post("/api/ml/autorizar", {codigo: $("#mlCodigo").value})); $("#mlCodigo").value = ""; } catch (e) { msg(e.message); } };
+})();
+</script>
+<div id="ativacao" style="display:none;position:fixed;inset:0;z-index:99;background:var(--bg,#111);align-items:center;justify-content:center">
+  <div style="max-width:460px;width:90%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px">
+    <h2 style="margin:0 0 8px">Ativar o Sniper Oferta</h2>
+    <p class="sub" id="atvMsg">Cole a chave de ativação que você recebeu na compra.</p>
+    <input id="atvChave" placeholder="SNP-..." style="width:100%;margin:8px 0" autocomplete="off">
+    <button class="btn" id="atvBtn">Ativar</button>
+    <div class="err" id="atvErro" style="margin-top:8px"></div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = q => document.querySelector(q);
+  const checa = async () => {
+    try {
+      const st = await (await fetch("/api/licenca/status")).json();
+      $("#ativacao").style.display = st.exigida && !st.ativa ? "flex" : "none";
+      if (st.mensagem) $("#atvErro").textContent = st.mensagem;
+    } catch (e) { /* servidor fora do ar: não mexe na tela */ }
+  };
+  $("#atvBtn").onclick = async () => {
+    const r = await fetch("/api/licenca/ativar", {method: "POST", headers: {"content-type": "application/json"},
+      body: JSON.stringify({chave: $("#atvChave").value})});
+    const j = await r.json();
+    if (r.ok) location.reload(); else $("#atvErro").textContent = j.erro;
+  };
+  checa(); setInterval(checa, 30000);
+  const aviso = async () => {
+    try {
+      const r = await (await fetch("/api/atualizacao")).json();
+      if (!r.nova) return;
+      const b = document.createElement("div");
+      b.style.cssText = "position:fixed;bottom:12px;right:12px;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px";
+      b.innerHTML = `Versão ${r.nova.versao} disponível (você tem ${r.atual}). <button class="btn" id="atuBaixar">Baixar</button>`;
+      document.body.appendChild(b);
+      $("#atuBaixar").onclick = () => fetch("/api/open", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({url: r.nova.url})});
+    } catch (e) { /* sem internet: segue sem aviso */ }
+  };
+  aviso(); setInterval(aviso, 6 * 3600 * 1000);
 })();
 </script>
 </body>

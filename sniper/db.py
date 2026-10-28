@@ -330,10 +330,14 @@ class Database:
             "SELECT COUNT(DISTINCT item_id) FROM discards WHERE store=? AND seller_id=? AND ts>=?",
             (store, seller_id, time.time() - days * 86400)).fetchone()[0]
 
-    def prune(self, days: int = 45) -> None:
+    def prune(self, days: int = 30) -> None:
+        """Apaga cópias de dados do marketplace mais velhas que `days` (termos de uso da API)."""
+        corte = time.time() - days * 86400
         with self.lock, self.conn:
-            self.conn.execute("DELETE FROM prices WHERE ts<?", (time.time() - days * 86400,))
-            self.conn.execute("DELETE FROM discards WHERE ts<?", (time.time() - days * 86400,))
+            self.conn.execute("DELETE FROM prices WHERE ts<?", (corte,))
+            self.conn.execute("DELETE FROM discards WHERE ts<?", (corte,))
+            self.conn.execute("DELETE FROM alerts WHERE ts<?", (corte,))
+            self.conn.execute("DELETE FROM items WHERE last_seen<?", (corte,))
 
     @staticmethod
     def _alert_dict(r: sqlite3.Row) -> dict:

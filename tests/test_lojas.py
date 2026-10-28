@@ -58,7 +58,7 @@ class RegistroTests(unittest.TestCase):
         return eng
 
     def test_ml_no_registro_e_oficial(self):
-        self.assertEqual((LOJAS["mercadolivre"].nome, LOJAS["mercadolivre"].oficial), ("Mercado Livre", True))
+        self.assertEqual((LOJAS["mercadolivre"].nome, LOJAS["mercadolivre"].oficial), ("ML", True))
 
     def test_cria_loja_ativa_e_configurada_com_limiter(self):
         eng = self.engine(ml_client_id="id", ml_client_secret="s",
@@ -77,7 +77,7 @@ class RegistroTests(unittest.TestCase):
         eng = self.engine(lojas={"mercadolivre": LojaConfig(ativo=True)})
         self.assertNotIn("mercadolivre", eng.collectors)
         self.assertFalse(eng.store_status["mercadolivre"]["configurada"])
-        self.assertIn("auth_ml.py", eng.store_status["mercadolivre"]["motivo"])
+        self.assertIn("Conectar ML", eng.store_status["mercadolivre"]["motivo"])
         self.assertIn("mercadolivre", eng.limiters)
 
     def test_loja_desligada_nao_cria_nada(self):
@@ -88,7 +88,7 @@ class RegistroTests(unittest.TestCase):
     def test_motivo_loja_inexistente_e_nao_configurada(self):
         eng = self.engine()
         self.assertIn("não existe", eng._motivo_sem_coletor("xpto"))
-        self.assertIn("auth_ml.py", eng._motivo_sem_coletor("mercadolivre"))
+        self.assertIn("Conectar ML", eng._motivo_sem_coletor("mercadolivre"))
 
 
 class MLLimiteTests(unittest.TestCase):

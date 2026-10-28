@@ -30,9 +30,9 @@ def _ps(texto: str) -> str:
 
 
 def script_atalho(base: Path, lnk: Path) -> str:
-    bat = base / "iniciar.bat"
+    alvo = Path(sys.executable) if getattr(sys, "frozen", False) else base / "iniciar.bat"
     return (f"$s = (New-Object -ComObject WScript.Shell).CreateShortcut({_ps(str(lnk))}); "
-            f"$s.TargetPath = {_ps(str(bat))}; $s.Arguments = '--sem-janela'; "
+            f"$s.TargetPath = {_ps(str(alvo))}; $s.Arguments = '--sem-janela'; "
             f"$s.WorkingDirectory = {_ps(str(base))}; $s.WindowStyle = 7; $s.Save()")
 
 

@@ -11,25 +11,73 @@ import webbrowser
 from pathlib import Path
 
 from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from . import atualizacao, licenca, licenca_publica, ml_auth, paths, segredos
+from .collectors.mercadolivre import TokenStore
 from .config import Settings
 from .engine import Engine
 
-WEB = Path(__file__).parent / "web"
+WEB = paths.recurso("sniper/web")
 STATUS_OK = {"novo", "visto", "comprado", "ignorado", "cancelado_loja", "loja_teste"}
 
 
-def create_app(settings: Settings) -> Starlette:
+def create_app(settings: Settings, exigir_licenca: bool | None = None, chave_publica: str | None = None,
+               url_revogadas: str | None = None) -> Starlette:
     engine = Engine(settings)
+    exigir = paths.empacotado() if exigir_licenca is None else exigir_licenca
+    publica = chave_publica or licenca_publica.PUBLICA
+    url_rev = licenca.URL_REVOGADAS if url_revogadas is None else url_revogadas
+    lic = {"ok": not exigir, "msg": "", "cliente": "", "expira": "", "ts": 0.0}
+
+    def avaliar(chave: str) -> None:
+        """Valida a chave (assinatura, validade, revogação) e atualiza o estado. Levanta LicencaInvalida."""
+        try:
+            l = licenca.validar(chave, publica)
+            licenca.checar_online(l, url_rev)
+        except licenca.LicencaInvalida as e:
+            lic.update(ok=False, msg=str(e), ts=time.time())
+            engine.paused = True
+            raise
+        lic.update(ok=True, msg="", cliente=l.cliente, expira=l.expira.strftime("%d/%m/%Y"), ts=time.time())
+
+    def estado() -> dict:
+        return {"ativa": lic["ok"], "exigida": exigir, "mensagem": lic["msg"],
+                "cliente": lic["cliente"], "expira": lic["expira"]}
+
+    if exigir:
+        engine.paused = True
+        guardada = segredos.ler("licenca_chave")
+        if guardada:
+            try:
+                avaliar(guardada)
+                engine.paused = False
+            except licenca.LicencaInvalida:
+                pass
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
         await engine.start()
         yield
         await engine.stop()
+
+    async def licenca_status(_: Request):
+        return JSONResponse(estado())
+
+    async def licenca_ativar(req: Request):
+        chave = str((await req.json()).get("chave", "")).strip()
+        try:
+            await asyncio.to_thread(avaliar, chave)
+            segredos.guardar("licenca_chave", chave)
+        except licenca.LicencaInvalida as e:
+            return JSONResponse({"erro": str(e)}, status_code=400)
+        except segredos.CofreIndisponivel as e:
+            return JSONResponse({"erro": str(e)}, status_code=500)
+        engine.paused = False
+        return JSONResponse(estado())
 
     async def index(_: Request):
         return FileResponse(WEB / "index.html")
@@ -106,6 +154,53 @@ def create_app(settings: Settings) -> Starlette:
             return JSONResponse({"erro": "loja não existe"}, status_code=404)
         return JSONResponse(engine.lojas_info())
 
+    def ml_status() -> dict:
+        s = engine.s
+        tem = bool(s.ml_client_id and s.ml_client_secret and s.ml_redirect_uri)
+        return {"tem_credenciais": tem, "client_id": s.ml_client_id, "redirect_uri": s.ml_redirect_uri,
+                "tem_token": TokenStore(s.base_dir / "data" / "ml_token.json", "", "",
+                                        cofre=not (s.base_dir / "data" / "ml_token.json").exists()).has_token,
+                "auth_url": ml_auth.url_autorizacao(s.ml_client_id, s.ml_redirect_uri) if tem else ""}
+
+    async def ml_status_rota(_: Request):
+        return JSONResponse(ml_status())
+
+    async def ml_credenciais(req: Request):
+        b = await req.json()
+        cid, sec, red = (str(b.get(k, "")).strip() for k in ("client_id", "client_secret", "redirect_uri"))
+        if not (cid and sec and red):
+            return JSONResponse({"erro": "Preencha client_id, client_secret e redirect_uri."}, status_code=400)
+        try:
+            segredos.guardar("ml_client_id", cid)
+            segredos.guardar("ml_client_secret", sec)
+            segredos.guardar("ml_redirect_uri", red)
+        except segredos.CofreIndisponivel as e:
+            return JSONResponse({"erro": str(e)}, status_code=500)
+        engine.s.ml_client_id, engine.s.ml_client_secret, engine.s.ml_redirect_uri = cid, sec, red
+        return JSONResponse(ml_status())
+
+    async def ml_autorizar(req: Request):
+        s = engine.s
+        if not (s.ml_client_id and s.ml_client_secret and s.ml_redirect_uri):
+            return JSONResponse({"erro": "Cadastre as credenciais do ML primeiro."}, status_code=400)
+        codigo = ml_auth.extrair_codigo(str((await req.json()).get("codigo", "")))
+        if not codigo:
+            return JSONResponse({"erro": "Cole o código ou a URL para onde você foi levado."}, status_code=400)
+        try:
+            p = await asyncio.to_thread(ml_auth.trocar_codigo, s.ml_client_id, s.ml_client_secret,
+                                        s.ml_redirect_uri, codigo)
+            arq = s.base_dir / "data" / "ml_token.json"
+            TokenStore(arq, s.ml_client_id, s.ml_client_secret, cofre=not arq.exists()).save(p)
+        except (ml_auth.AutorizacaoFalhou, segredos.CofreIndisponivel) as e:
+            return JSONResponse({"erro": str(e)}, status_code=400)
+        await engine.set_store_active("mercadolivre", False)   # recria o coletor com o token novo
+        await engine.set_store_active("mercadolivre", True)
+        return JSONResponse(ml_status())
+
+    async def atualizacao_rota(_: Request):
+        nova = await asyncio.to_thread(atualizacao.verificar, atualizacao.URL_VERSAO, atualizacao.versao.VERSAO)
+        return JSONResponse({"atual": atualizacao.versao.VERSAO, "nova": nova})
+
     async def events(_: Request):
         return JSONResponse(list(engine.events))
 
@@ -159,6 +254,12 @@ def create_app(settings: Settings) -> Starlette:
         Route("/api/watches", watches),
         Route("/api/lojas", lojas),
         Route("/api/lojas/{chave}", set_loja, methods=["POST"]),
+        Route("/api/atualizacao", atualizacao_rota),
+        Route("/api/licenca/status", licenca_status),
+        Route("/api/licenca/ativar", licenca_ativar, methods=["POST"]),
+        Route("/api/ml/status", ml_status_rota),
+        Route("/api/ml/credenciais", ml_credenciais, methods=["POST"]),
+        Route("/api/ml/autorizar", ml_autorizar, methods=["POST"]),
         Route("/api/events", events),
         Route("/api/history/{store}/{item_id}", history),
         Route("/api/pause", pause, methods=["POST"]),
@@ -167,4 +268,18 @@ def create_app(settings: Settings) -> Starlette:
     ]
     app = Starlette(routes=routes, lifespan=lifespan)
     app.state.engine = engine
+
+    async def exige_licenca(req: Request, call_next):
+        if exigir and req.url.path.startswith("/api/") and not req.url.path.startswith("/api/licenca/"):
+            if lic["ok"] and time.time() - lic["ts"] > 3600:   # revalida de hora em hora (pega revogação)
+                try:
+                    await asyncio.to_thread(avaliar, segredos.ler("licenca_chave"))
+                except licenca.LicencaInvalida:
+                    pass
+            if not lic["ok"]:
+                return JSONResponse({"erro": lic["msg"] or "Ative sua licença para usar o Sniper.",
+                                     "licenca": False}, status_code=402)
+        return await call_next(req)
+
+    app.add_middleware(BaseHTTPMiddleware, dispatch=exige_licenca)
     return app
