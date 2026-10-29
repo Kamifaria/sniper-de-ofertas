@@ -1,6 +1,6 @@
 ; Compilar com Inno Setup 6:  ISCC.exe instalador.iss   (depois de gerar dist\SniperOferta com o PyInstaller)
 #define Nome "Sniper Oferta"
-#define Versao "1.2.0"
+#define Versao "1.3.0"
 
 [Setup]
 AppId={{B7E3A1D2-5C4F-4E8A-9B61-2F0D7A93C511}

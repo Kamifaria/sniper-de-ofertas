@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .collectors import AmazonCollector, Collector, KabumCollector, MercadoLivreCollector, VtexCollector
+from .collectors import AmazonCollector, Collector, KabumCollector, MercadoLivreCollector, ShopifyCollector, VtexCollector
 from .config import Settings
 from .ratelimit import RateLimiter
 
@@ -38,6 +38,10 @@ def _amazon(s: Settings, lim: RateLimiter) -> Optional[Collector]:
 
 def _kabum(s: Settings, lim: RateLimiter) -> Optional[Collector]:
     return KabumCollector(limiter=lim)
+
+
+def _shopify(chave: str, dominio: str) -> Callable[[Settings, RateLimiter], Optional[Collector]]:
+    return lambda s, lim: ShopifyCollector(chave, dominio, limiter=lim)
 
 
 def _vtex(chave: str, dominio: str) -> Callable[[Settings, RateLimiter], Optional[Collector]]:
@@ -125,6 +129,7 @@ VTEX = [
     ("montecarlo", "Monte Carlo", "www.montecarlo.com.br"),
     # Beleza e farmácia
     ("dermage", "Dermage", "www.dermage.com.br"),
+    ("oceane", "Océane", "www.oceane.com.br"),
     ("hinode", "Hinode", "www.hinode.com.br"),
     ("jequiti", "Jequiti", "www.jequiti.com.br"),
     ("drogal", "Drogal", "www.drogal.com.br"),
@@ -139,6 +144,17 @@ VTEX = [
     ("rihappy", "Ri Happy", "www.rihappy.com.br"),
 ]
 
+# Lojas Shopify de maquiagem, pela lista pública de produtos (conferido em 2026-10-29).
+# Fora: Sephora (HTTP 410), Época Cosméticos (sem árvore de categorias), Vult, Eudora, Natura, O Boticário, Quem Disse Berenice, MAC e Beleza na Web
+# bloqueiam ou não têm lista pública.
+SHOPIFY = [
+    ("bocarosa", "Boca Rosa Beauty", "bocarosa.com.br"),
+    ("marimaria", "Mari Maria Makeup", "marimariamakeup.com"),
+    ("vizzela", "Vizzela", "vizzela.com.br"),
+    ("sallve", "Sallve", "www.sallve.com.br"),
+    ("dailus", "Dailus", "www.dailus.com.br"),
+]
+
 LOJAS: dict[str, LojaInfo] = {i.chave: i for i in [
     LojaInfo("mercadolivre", "ML", True, _mercadolivre, 60,
              "Clique em \"Conectar ML\" no painel e cadastre a sua conta de desenvolvedor"),
@@ -146,4 +162,5 @@ LOJAS: dict[str, LojaInfo] = {i.chave: i for i in [
              "Preencha [amazon] no config.toml: credencial da Creators API e tag de afiliado"),
     LojaInfo("kabum", "KaBuM", False, _kabum, 30),
     *(LojaInfo(chave, nome, False, _vtex(chave, dominio), 30) for chave, nome, dominio in VTEX),
+    *(LojaInfo(chave, nome, False, _shopify(chave, dominio), 30) for chave, nome, dominio in SHOPIFY),
 ]}

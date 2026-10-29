@@ -114,8 +114,8 @@ class VtexColetorTests(unittest.TestCase):
 
 class RegistroVtexTests(unittest.TestCase):
     def test_lojas_nao_oficiais(self):
-        vtex = {k: i for k, i in LOJAS.items() if k not in ("mercadolivre", "amazon", "kabum")}
-        self.assertEqual(len(vtex), 80)
+        vtex = {k: i for k, i in LOJAS.items() if k not in ("mercadolivre", "amazon", "kabum", "bocarosa", "marimaria", "vizzela", "sallve", "dailus")}
+        self.assertEqual(len(vtex), 81)
         self.assertTrue(all(not i.oficial for i in vtex.values()))
         self.assertIn("samsclub", vtex)
         self.assertIn("chillibeans", vtex)

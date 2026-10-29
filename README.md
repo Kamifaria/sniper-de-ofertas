@@ -2,9 +2,10 @@
 
 Caçador de bugs de preço para Windows, pensado para rodar 24 horas. Ele varre o catálogo das lojas, relê os itens caros com frequência, detecta preço fora do normal (erro de vírgula, item de graça, queda brusca) e avisa no painel, com notificação do Windows e no Telegram.
 
-Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catálogo**: mais vendidos de cada categoria e todos os vendedores de cada produto, porque a busca de anúncios e a leitura direta de anúncios são bloqueadas para apps comuns) e **80 lojas VTEX** e a **KaBuM** (API pública do site) pela busca pública, sem login (lista completa em `sniper/stores.py`):
+Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catálogo**: mais vendidos de cada categoria e todos os vendedores de cada produto, porque a busca de anúncios e a leitura direta de anúncios são bloqueadas para apps comuns) e **81 lojas VTEX**, a **KaBuM** e **5 lojas de maquiagem em Shopify** (Boca Rosa, Mari Maria, Vizzela, Sallve e Dailus), todas por consulta pública, sem login pela busca pública, sem login (lista completa em `sniper/stores.py`):
 - **Mercado, farmácia e beleza:** Americanas, Sam's Club, Atacadão, Giassi, Savegnago, Super Nosso, Zona Sul, Pague Menos, Drogaria São Paulo, Drogarias Pacheco, Drogal, Drogaria Venancio, Extrafarma, São João Farmácias, Dermage, Hinode, Jequiti.
 - **Eletro e casa:** Brastemp, Consul, Compra Certa, Electrolux, Fast Shop, Motorola, Polishop, Mondial, Arno, Oster, Multilaser, WebContinental, Tok&Stok, Brinox, Oxford Porcelanas, Telhanorte, Obramax, Amoedo, DPaschoal, Cobasi, Ri Happy.
+- **Maquiagem (VTEX):** Océane, Dermage, Hinode, Jequiti. A Sephora Brasil responde "410" para acesso externo e fica de fora.
 - **Esporte e tênis:** Authentic Feet, Kenner, Asics, Mizuno, Olympikus, Fila, Umbro, Penalty, New Balance, Under Armour, Skechers, Speedo, Crocs, Artwalk, Overboard.
 - **Moda, calçados e acessórios:** C&A, Hering, Reserva, Animale, Farm Rio, Bobô, Aramis, Calvin Klein, Levi's, Osklen, Malwee, Morena Rosa, Lupo, Duloren, Valisere, Puket, Dakota, Ferracini, Jorge Bischoff, Piccadilly, Santa Lolla, Usaflex, Chilli Beans, Óticas Diniz, Kipling, Vivara, Monte Carlo.
 
