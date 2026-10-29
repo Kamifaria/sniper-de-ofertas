@@ -1,5 +1,5 @@
 {
-  "versao": "1.1.0",
+  "versao": "1.2.0",
   "url": "https://github.com/Kamifaria/sniper-de-ofertas",
-  "notas": "Alerta diz que é bug de preço e a causa; KaBuM, Authentic Feet e Kenner; ML lê mais rápido."
+  "notas": "Promoção comum e bug de preço aparecem separados; botão Limpar alertas; clicar no título abre a loja."
 }

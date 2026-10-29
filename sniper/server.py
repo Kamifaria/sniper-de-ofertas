@@ -105,6 +105,9 @@ def create_app(settings: Settings, exigir_licenca: bool | None = None, chave_pub
         return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
+    async def limpar(_: Request):
+        return JSONResponse({"apagados": engine.db.limpar_alertas()})
+
     async def set_status(req: Request):
         body = await req.json()
         status = body.get("status")
@@ -246,6 +249,7 @@ def create_app(settings: Settings, exigir_licenca: bool | None = None, chave_pub
         Route("/", index),
         Route("/api/alerts", alerts),
         Route("/api/alerts.csv", alerts_csv),
+        Route("/api/alerts/limpar", limpar, methods=["POST"]),
         Route("/api/alerts/{id:int}/status", set_status, methods=["POST"]),
         Route("/api/stats", stats),
         Route("/api/discards", discards),

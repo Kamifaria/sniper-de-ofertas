@@ -55,6 +55,14 @@ A Amazon começa liberando 1 consulta por segundo, então não há varredura de 
 
 Ao abrir pelo `iniciar.bat`, se a pasta veio do Git, ele roda `git pull` e reinstala as dependências. O painel também compara a versão com `versao.json` do repositório e avisa quando houver uma nova.
 
+## Bug de preço x promoção
+
+Cada alerta é de um de dois tipos, com etiqueta e filtro próprios no painel:
+- **🐞 Bug de preço:** preço fora do normal (de graça, vírgula errada, muito abaixo dos concorrentes ou do histórico). Mostra a causa provável, toca som e vai para o Telegram e o Windows.
+- **🏷️ Promoção:** promoção comum da loja, com 40% ou mais de desconto sobre o preço "de". Aparece só no painel, sem som e sem aviso no celular.
+
+O botão **Limpar alertas** apaga a lista; o histórico de preços fica guardado.
+
 ## Telegram (alerta no celular)
 
 1. Fale com o **@BotFather**, crie um bot e copie o token.

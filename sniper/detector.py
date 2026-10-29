@@ -7,7 +7,8 @@ Combina vários sinais numa nota de 0 a 100:
   * queda brusca em relação à última leitura
   * preço abaixo do piso configurado na regra
   * preço que é 1/10 ou 1/100 do normal (vírgula no lugar errado)
-O desconto "de/por" anunciado pela loja não soma pontos: é marketing.
+O desconto "de/por" anunciado pela loja não soma pontos no bug. Sozinho (sem nada de estranho no preço)
+ele vira "PROMO": promoção comum, mostrada à parte e sem aviso no celular.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ class DetectorConfig:
     level_critico: int = 90
     level_alto: int = 70
     level_medio: int = 50
+    promo_min_drop: float = 0.40      # de/por da loja com pelo menos 40% de desconto conta como promoção
 
 
 def _drop(price: float, ref: Optional[float]) -> Optional[float]:
@@ -62,7 +64,7 @@ def _fracao_de_digitacao(price: float, refs: Sequence[float], tol: float) -> Opt
 
 def causa_bug(level: str, reasons: Sequence[str]) -> str:
     """Causa provável do bug de preço, em texto curto para o alerta. "" se não houve alerta."""
-    if level == "NENHUM" or not level:
+    if level in ("NENHUM", "PROMO") or not level:
         return ""
     if level == "GRATIS":
         return "Item de graça"
@@ -177,4 +179,10 @@ def evaluate(
         level = "MEDIO"
     else:
         level = "NENHUM"
+    if level == "NENHUM":
+        d_promo = _drop(price, offer.original_price)
+        if d_promo is not None and d_promo >= cfg.promo_min_drop:
+            return Verdict(int(d_promo * 100), "PROMO",
+                           [f"Promoção da loja: {d_promo:.0%} abaixo do preço \"de\""],
+                           offer.original_price, d_promo)
     return Verdict(score, level, reasons, ref_price, drop_pct)

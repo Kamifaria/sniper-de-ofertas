@@ -7,7 +7,7 @@
 <style>
 :root{
   --bg:#0b0e13; --panel:#121720; --panel2:#171d28; --line:#232b38; --text:#e6ebf2; --muted:#8793a6;
-  --accent:#3ddc97; --gratis:#b18cff; --critico:#ff4d5e; --alto:#ff9f43; --medio:#f5d547; --link:#5aa9ff;
+  --accent:#3ddc97; --gratis:#b18cff; --critico:#ff4d5e; --alto:#ff9f43; --medio:#f5d547; --promo:#4db5ff; --link:#5aa9ff;
   --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
 }
 *{box-sizing:border-box} html,body{margin:0;height:100%}
@@ -58,7 +58,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 360px;min-height:0}
 .card .title,.card .thumb{cursor:pointer}
 .bug-tag{font-weight:700;font-size:11px;color:var(--lvl);border:1px solid var(--lvl);border-radius:6px;padding:1px 6px}
 .causa{font-weight:600;color:var(--lvl);margin:2px 0}
-.L-GRATIS{--lvl:var(--gratis)} .L-CRITICO{--lvl:var(--critico)} .L-ALTO{--lvl:var(--alto)} .L-MEDIO{--lvl:var(--medio)}
+.L-GRATIS{--lvl:var(--gratis)} .L-CRITICO{--lvl:var(--critico)} .L-ALTO{--lvl:var(--alto)} .L-MEDIO{--lvl:var(--medio)} .L-PROMO{--lvl:var(--promo)}
 .status-tag{font-size:11px;color:var(--muted)}
 aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
 aside h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0;padding:14px 16px 8px}
@@ -130,11 +130,14 @@ a.btn{text-decoration:none;font-size:13px;padding:4px 12px}
   <section class="feed">
     <div class="toolbar">
       <button class="chip on" data-lvl="">Todos</button>
+      <button class="chip" data-lvl="@BUG">🐞 Bugs</button>
+      <button class="chip" data-lvl="PROMO">🏷️ Promoções</button>
       <button class="chip" data-lvl="GRATIS">🎁 Grátis</button>
       <button class="chip" data-lvl="CRITICO">🚨 Crítico</button>
       <button class="chip" data-lvl="ALTO">🔥 Alto</button>
       <button class="chip" data-lvl="MEDIO">💡 Médio</button>
       <span class="sep"></span>
+      <button class="btn" id="btnLimpar" title="Apaga a lista de alertas (o histórico de preços fica)">🧹 Limpar alertas</button>
       <select id="periodo" title="Período dos alertas (log de bugs)">
         <option value="">Todo o período</option>
         <option value="hoje">Hoje</option>
@@ -211,7 +214,7 @@ function card(a, isNew) {
       <div class="reasons">${a.reasons.map(r => `<span>${esc(r)}</span>`).join("")}</div>
     </div>
     <div class="right">
-      <div class="badges">${a.confirmed ? '<span class="ok-badge" title="Preço relido direto no anúncio antes do alerta">✓ confirmado</span>' : ""}<span class="bug-tag" title="Causa provável do bug">🐞 BUG DE PREÇO</span><span class="lvl">${a.level}</span><span class="score">${a.score}/100</span></div>
+      <div class="badges">${a.confirmed ? '<span class="ok-badge" title="Preço relido direto no anúncio antes do alerta">✓ confirmado</span>' : ""}${a.tipo === "PROMO" ? '<span class="bug-tag" title="Promoção comum da loja (preço de/por)">🏷️ PROMOÇÃO</span>' : '<span class="bug-tag" title="Causa provável do bug">🐞 BUG DE PREÇO</span>'}<span class="lvl">${a.level}</span><span class="score">${a.score}/100</span></div>
       <div class="price">${brl(a.price)}</div>
       <div>${a.ref_price ? `<span class="ref">${brl(a.ref_price)}</span>` : ""} ${a.drop_pct ? `<span class="drop">-${Math.round(a.drop_pct*100)}%</span>` : ""}</div>
       <div class="actions">
@@ -226,7 +229,7 @@ function card(a, isNew) {
 }
 
 function render(newId) {
-  const list = state.alerts.filter(a => (!state.lvl || a.level === state.lvl) && (!state.onlyNew || a.status === "novo"));
+  const list = state.alerts.filter(a => (!state.lvl || (state.lvl === "@BUG" ? a.tipo === "BUG" : a.level === state.lvl)) && (!state.onlyNew || a.status === "novo"));
   $("#cards").innerHTML = list.length ? list.map(a => card(a, a.id === newId)).join("")
     : `<div class="empty">Nenhum alerta ainda. O motor está vigiando — assim que um preço sair do normal, ele aparece aqui.</div>`;
 }
@@ -323,7 +326,7 @@ function connect() {
     if (ev.type === "alert") {
       state.alerts.unshift(ev.alert); state.alerts = state.alerts.slice(0, 300);
       render(ev.alert.id);
-      if (ev.alert.level !== "MEDIO") beep(ev.alert.level);
+      if (ev.alert.level !== "MEDIO" && ev.alert.level !== "PROMO") beep(ev.alert.level);
       document.title = `(${state.alerts.filter(a => a.status === "novo").length}) Sniper de Ofertas`;
     } else if (ev.type === "log") addLog(ev);
     else if (ev.type === "discard") loadDiscards();
@@ -387,6 +390,12 @@ document.addEventListener("click", async e => {
     renderWatches(await api("/api/watches"));
   }
 });
+$("#btnLimpar").onclick = async () => {
+  if (!confirm("Apagar todos os alertas da lista? O histórico de preços fica guardado.")) return;
+  await api("/api/alerts/limpar", {});
+  state.alerts = []; render(); refreshStats();
+  document.title = "Sniper de Ofertas";
+};
 $("#btnSom").onclick = () => { state.sound = !state.sound; $("#btnSom").textContent = state.sound ? "🔔 Som ligado" : "🔕 Som desligado"; if (state.sound) beep("MEDIO"); };
 $("#btnPause").onclick = async () => { const r = await api("/api/pause", {paused: !state.paused}); state.paused = r.pausado; updateLive(); };
 

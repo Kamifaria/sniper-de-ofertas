@@ -174,6 +174,11 @@ class Database:
         sql += " ORDER BY ts DESC LIMIT ?"; args.append(limit)
         return [self._alert_dict(r) for r in self.conn.execute(sql, args).fetchall()]
 
+    def limpar_alertas(self) -> int:
+        """Apaga a lista de alertas. O histórico de preços fica (o detector precisa dele)."""
+        with self.lock, self.conn:
+            return self.conn.execute("DELETE FROM alerts").rowcount
+
     def set_alert_status(self, alert_id: int, status: str) -> None:
         with self.lock, self.conn:
             self.conn.execute("UPDATE alerts SET status=? WHERE id=?", (status, alert_id))
@@ -347,4 +352,5 @@ class Database:
         d["free_shipping"] = bool(d["free_shipping"])
         d["confirmed"] = bool(d.get("confirmed"))
         d["bug"] = causa_bug(d["level"], d["reasons"])
+        d["tipo"] = "PROMO" if d["level"] == "PROMO" else "BUG"
         return d

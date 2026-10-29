@@ -76,3 +76,8 @@ class Verdict:
     @property
     def is_alert(self) -> bool:
         return self.level != "NENHUM"
+
+    @property
+    def tipo(self) -> str:
+        """"BUG" (preço fora do normal), "PROMO" (promoção comum da loja) ou "" (nada)."""
+        return "" if self.level == "NENHUM" else "PROMO" if self.level == "PROMO" else "BUG"

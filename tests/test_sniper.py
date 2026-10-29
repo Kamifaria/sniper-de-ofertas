@@ -45,9 +45,9 @@ class DetectorTests(unittest.TestCase):
         v = evaluate(offer(550.0), self.hist)  # ~45% abaixo + queda brusca
         self.assertIn(v.level, ("MEDIO", "ALTO"))
 
-    def test_desconto_de_por_sozinho_nao_alerta(self):
+    def test_desconto_de_por_sozinho_e_promocao_e_nao_bug(self):
         v = evaluate(offer(100.0, orig=1000.0), [])
-        self.assertEqual((v.score, v.level, v.ref_price), (0, "NENHUM", None))
+        self.assertEqual((v.level, v.tipo), ("PROMO", "PROMO"))
 
     def test_desconto_de_por_nao_soma_pontos(self):
         com = evaluate(offer(550.0, orig=5000.0), self.hist)

@@ -11,7 +11,7 @@ from .detector import causa_bug
 
 log = logging.getLogger("sniper.notify")
 
-EMOJI = {"GRATIS": "🎁", "CRITICO": "🚨", "ALTO": "🔥", "MEDIO": "💡"}
+EMOJI = {"GRATIS": "🎁", "CRITICO": "🚨", "ALTO": "🔥", "MEDIO": "💡", "PROMO": "🏷️"}
 
 
 def _brl(v: float | None) -> str:
@@ -25,8 +25,12 @@ def _causa(a: dict) -> str:
 
 
 def format_text(a: dict) -> str:
-    head = f"{EMOJI.get(a['level'], '')} BUG DE PREÇO · {a['level']} · nota {a['score']}"
-    lines = [head, f"Causa provável: {_causa(a)}", a["title"], f"Agora: {_brl(a['price'])}"]
+    if a["level"] == "PROMO":
+        lines = [f"{EMOJI['PROMO']} PROMOÇÃO · {(a.get('drop_pct') or 0):.0%} off", a["title"],
+                 f"Agora: {_brl(a['price'])}"]
+    else:
+        head = f"{EMOJI.get(a['level'], '')} BUG DE PREÇO · {a['level']} · nota {a['score']}"
+        lines = [head, f"Causa provável: {_causa(a)}", a["title"], f"Agora: {_brl(a['price'])}"]
     if a.get("ref_price"):
         lines.append(f"Referência: {_brl(a['ref_price'])} (-{(a.get('drop_pct') or 0):.0%})")
     if a.get("reasons"):
@@ -43,7 +47,7 @@ class TelegramNotifier:
         self.client = httpx.AsyncClient(timeout=10)
 
     async def send(self, alert: dict) -> None:
-        if alert["score"] < self.min_score:
+        if alert["score"] < self.min_score or alert["level"] == "PROMO":
             return
         await self.send_text(format_text(alert))
 
@@ -73,7 +77,7 @@ class WindowsNotifier:
                             type(e).__name__, e, sys.executable)
 
     async def send(self, alert: dict) -> None:
-        if not self.ok or alert["score"] < self.min_score:
+        if not self.ok or alert["score"] < self.min_score or alert["level"] == "PROMO":
             return
         from winotify import Notification, audio
 

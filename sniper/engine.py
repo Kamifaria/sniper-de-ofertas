@@ -462,7 +462,7 @@ class Engine:
                 continue  # loja já bloqueada: ignora em silêncio
             hist = self.db.history(o.store, o.item_id)
             v = detector.evaluate(o, hist, w, det, peers_for(o))
-            if self._alert_worthy(v) and not simbolico(o, hist):  # só registra o que teria virado alerta
+            if v.tipo == "BUG" and self._alert_worthy(v) and not simbolico(o, hist):  # só o que teria virado alerta
                 discards += self._discard(o, v.score, reason)
 
         candidates: list[tuple[Offer, Verdict, list[float], list[float]]] = []
@@ -486,12 +486,13 @@ class Engine:
             a = self.db.save_alert(o, v)
             alerts += 1
             self.emit("alert", alert=a)
-            for n in self.notifiers:
-                asyncio.create_task(n.send(a))
+            if v.tipo == "BUG":  # promoção comum só aparece no painel
+                for n in self.notifiers:
+                    asyncio.create_task(n.send(a))
         return {"alertas": alerts, "descartes": discards, "rejeitados": len(rejected)}
 
     def _alert_worthy(self, v: Verdict) -> bool:
-        return v.is_alert and v.score >= self.s.min_alert_score
+        return v.tipo == "PROMO" or (v.is_alert and v.score >= self.s.min_alert_score)
 
     def _discard(self, o: Offer, score: int, reason: str) -> int:
         """Registra um descarte (uma vez por item por cooldown). Retorna 1 se registrou."""
@@ -525,6 +526,8 @@ class Engine:
     async def _vet(self, col: Collector, w: Watch, o: Offer, v: Verdict,
                    hist: list[float], peers: list[float]) -> tuple[Offer, Verdict] | None:
         fcfg = self.s.filters
+        if v.tipo == "PROMO":  # sem consulta extra: são muitas e não valem uma chamada cada
+            return o, v
         # Loja de teste?
         if o.seller_id:
             info = await self._seller(col, o)
