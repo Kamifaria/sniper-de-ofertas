@@ -231,7 +231,7 @@ function card(a, isNew) {
     </div></div>`;
 }
 
-const semAcento = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const semAcento = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 function bateBusca(a) {
   const termos = semAcento(state.q).split(/\s+/).filter(Boolean);
   if (!termos.length) return true;
