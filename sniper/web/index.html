@@ -35,6 +35,8 @@ main{flex:1;display:grid;grid-template-columns:1fr 360px;min-height:0}
 .chip{background:transparent;border:1px solid var(--line);border-radius:99px;padding:4px 12px;color:var(--muted);font-size:13px}
 .chip.on{color:var(--text);border-color:var(--text)}
 .toolbar .sep{flex:1}
+.busca{flex:1 1 100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font:inherit;font-size:14px;margin-bottom:4px}
+.busca:focus{outline:none;border-color:var(--accent)}
 .cards{display:flex;flex-direction:column;gap:10px}
 .card{display:grid;grid-template-columns:72px 1fr auto;gap:14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--lvl,var(--line));border-radius:10px;padding:12px}
 .card.new{animation:flash 1.8s ease-out}
@@ -129,6 +131,7 @@ a.btn{text-decoration:none;font-size:13px;padding:4px 12px}
 <main>
   <section class="feed">
     <div class="toolbar">
+      <input type="search" id="busca" class="busca" placeholder="🔎 Buscar pelo nome do produto, loja ou vendedor…" autocomplete="off">
       <button class="chip on" data-lvl="">Todos</button>
       <button class="chip" data-lvl="@BUG">🐞 Bugs</button>
       <button class="chip" data-lvl="PROMO">🏷️ Promoções</button>
@@ -189,7 +192,7 @@ a.btn{text-decoration:none;font-size:13px;padding:4px 12px}
 </dialog>
 <script>
 const $ = s => document.querySelector(s);
-const state = {alerts: [], lvl: "", onlyNew: false, sound: true, paused: false, since: 0};
+const state = {alerts: [], lvl: "", q: "", onlyNew: false, sound: true, paused: false, since: 0};
 const brl = v => v == null ? "-" : v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
 const hhmm = ts => new Date(ts * 1000).toLocaleTimeString("pt-BR");
 const ago = ts => { const s = Math.round(Date.now()/1000 - ts); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)}min` : `${Math.round(s/3600)}h`; };
@@ -228,10 +231,18 @@ function card(a, isNew) {
     </div></div>`;
 }
 
+const semAcento = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+function bateBusca(a) {
+  const termos = semAcento(state.q).split(/\s+/).filter(Boolean);
+  if (!termos.length) return true;
+  const texto = semAcento(`${a.title} ${nomeLoja(a.store)} ${a.seller_name} ${a.watch}`);
+  return termos.every(t => texto.includes(t));
+}
+
 function render(newId) {
-  const list = state.alerts.filter(a => (!state.lvl || (state.lvl === "@BUG" ? a.tipo === "BUG" : a.level === state.lvl)) && (!state.onlyNew || a.status === "novo"));
+  const list = state.alerts.filter(a => bateBusca(a) && (!state.lvl || (state.lvl === "@BUG" ? a.tipo === "BUG" : a.level === state.lvl)) && (!state.onlyNew || a.status === "novo"));
   $("#cards").innerHTML = list.length ? list.map(a => card(a, a.id === newId)).join("")
-    : `<div class="empty">Nenhum alerta ainda. O motor está vigiando — assim que um preço sair do normal, ele aparece aqui.</div>`;
+    : `<div class="empty">${state.q ? "Nenhum alerta com esse nome." : "Nenhum alerta ainda. O motor está vigiando — assim que um preço sair do normal, ele aparece aqui."}</div>`;
 }
 
 function renderWatches(ws) {
@@ -390,6 +401,7 @@ document.addEventListener("click", async e => {
     renderWatches(await api("/api/watches"));
   }
 });
+$("#busca").oninput = e => { state.q = e.target.value; render(); };
 $("#btnLimpar").onclick = async () => {
   if (!confirm("Apagar todos os alertas da lista? O histórico de preços fica guardado.")) return;
   await api("/api/alerts/limpar", {});
