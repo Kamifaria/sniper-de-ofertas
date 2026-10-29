@@ -61,7 +61,7 @@ class TokenStore:
             if self.data.get("access_token") and time.time() < self.data.get("expires_at", 0):
                 return self.data["access_token"]
             if not self.data.get("refresh_token"):
-                raise CollectorError("Mercado Livre sem token. Rode: python auth_ml.py")
+                raise CollectorError("Mercado Livre sem conexão. Abra \"Conectar ML\" no app e autorize.")
             r = await client.post(f"{API}/oauth/token", data={
                 "grant_type": "refresh_token",
                 "client_id": self.client_id,
@@ -70,7 +70,7 @@ class TokenStore:
             }, headers={"accept": "application/json"})
             if r.status_code != 200:
                 raise CollectorError(f"Falha ao renovar token do ML ({r.status_code}): {r.text[:200]}. "
-                                     "Rode python auth_ml.py de novo.")
+                                     "Abra \"Conectar ML\" e confira o Client ID e o Client Secret.")
             self.save(r.json())
             log.info("Token do Mercado Livre renovado")
             return self.data["access_token"]
