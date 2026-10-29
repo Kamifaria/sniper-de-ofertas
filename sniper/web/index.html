@@ -55,6 +55,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 360px;min-height:0}
 .drop{font:700 12px var(--mono);color:var(--accent)}
 .actions{display:flex;gap:5px}
 .actions .btn{padding:4px 10px;font-size:12.5px}
+.card .title,.card .thumb{cursor:pointer}
 .bug-tag{font-weight:700;font-size:11px;color:var(--lvl);border:1px solid var(--lvl);border-radius:6px;padding:1px 6px}
 .causa{font-weight:600;color:var(--lvl);margin:2px 0}
 .L-GRATIS{--lvl:var(--gratis)} .L-CRITICO{--lvl:var(--critico)} .L-ALTO{--lvl:var(--alto)} .L-MEDIO{--lvl:var(--medio)}
@@ -202,9 +203,9 @@ function card(a, isNew) {
   const done = ["comprado", "ignorado", "loja_teste"].includes(a.status);
   const thumb = a.thumbnail ? `style="background-image:url('${esc(a.thumbnail)}')"` : "";
   return `<div class="card L-${a.level} ${isNew ? "new" : ""} ${done ? "done" : ""}" data-id="${a.id}">
-    <div class="thumb" ${thumb}>${a.thumbnail ? "" : esc(nomeLoja(a.store)[0] || "?")}</div>
+    <div class="thumb" data-open="${a.id}" title="Abrir oferta na loja" ${thumb}>${a.thumbnail ? "" : esc(nomeLoja(a.store)[0] || "?")}</div>
     <div>
-      <div class="title" data-hist="${a.id}">${esc(a.title)}</div>
+      <div class="title" data-open="${a.id}" title="Abrir oferta na loja">${esc(a.title)}</div>
       <div class="meta"><span>${esc(nomeLoja(a.store))}</span>${a.seller_name ? `<span>🏪 ${esc(a.seller_name)}</span>` : ""}<span>${esc(a.watch)}</span><span>${hhmm(a.ts)} · há ${ago(a.ts)}</span>${a.free_shipping ? "<span>frete grátis</span>" : ""}${a.status !== "novo" ? `<span class="status-tag">● ${esc(a.status)}</span>` : ""}</div>
       <div class="causa">${esc(a.bug || "")}</div>
       <div class="reasons">${a.reasons.map(r => `<span>${esc(r)}</span>`).join("")}</div>
@@ -215,6 +216,7 @@ function card(a, isNew) {
       <div>${a.ref_price ? `<span class="ref">${brl(a.ref_price)}</span>` : ""} ${a.drop_pct ? `<span class="drop">-${Math.round(a.drop_pct*100)}%</span>` : ""}</div>
       <div class="actions">
         <button class="btn primary" data-open="${a.id}">Abrir oferta</button>
+        <button class="btn" data-hist="${a.id}" title="Ver o histórico de preço">📈 Histórico</button>
         ${a.cart_url ? `<button class="btn primary" data-cart="${a.id}" title="Abre a loja com o item já no carrinho">🛒 Carrinho</button>` : ""}
         <button class="btn" data-st="comprado" data-id="${a.id}">Comprei</button>
         <button class="btn" data-st="ignorado" data-id="${a.id}">Ignorar</button>
@@ -351,7 +353,7 @@ async function showHistory(a) {
 function closeModal() { $("#modal").classList.remove("on"); }
 
 document.addEventListener("click", async e => {
-  const t = e.target.closest("button, .title") || e.target;
+  const t = e.target.closest("button, .title, .thumb") || e.target;
   if (t.dataset.lvl !== undefined && t.classList.contains("chip")) {
     document.querySelectorAll("[data-lvl]").forEach(c => c.classList.toggle("on", c === t));
     state.lvl = t.dataset.lvl; render();
