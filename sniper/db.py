@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from .detector import causa_bug
 from .models import Offer, Verdict
 
 SCHEMA = """
@@ -345,4 +346,5 @@ class Database:
         d["reasons"] = json.loads(d["reasons"] or "[]")
         d["free_shipping"] = bool(d["free_shipping"])
         d["confirmed"] = bool(d.get("confirmed"))
+        d["bug"] = causa_bug(d["level"], d["reasons"])
         return d

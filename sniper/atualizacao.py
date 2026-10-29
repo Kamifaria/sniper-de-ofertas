@@ -7,8 +7,8 @@ import httpx
 
 from . import versao
 
-# Endereço do JSON de versão hospedado por você (ex.: GitHub Pages). Vazio = não verifica.
-URL_VERSAO = ""
+# Endereço do JSON de versão (versao.json na raiz do repositório). Vazio = não verifica.
+URL_VERSAO = "https://raw.githubusercontent.com/Kamifaria/sniper-de-ofertas/main/versao.json"
 
 
 def _tupla(v: str) -> tuple[int, ...]:

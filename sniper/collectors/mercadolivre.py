@@ -192,10 +192,8 @@ class MercadoLivreCollector(Collector):
         return [c["id"] for c in data.get("content", []) if c.get("type") == "PRODUCT"]
 
     async def _de_produtos(self, pids: list[str], watch: Watch, fila: str = "normal") -> list[Offer]:
-        offers: list[Offer] = []
-        for pid in dict.fromkeys(pids):
-            offers += await self._vendedores(pid, watch, fila)
-        return offers
+        listas = await asyncio.gather(*(self._vendedores(pid, watch, fila) for pid in dict.fromkeys(pids)))
+        return [o for lista in listas for o in lista]
 
     async def collect(self, watch: Watch) -> list[Offer]:
         if watch.item_ids and not self._aviso_itens:

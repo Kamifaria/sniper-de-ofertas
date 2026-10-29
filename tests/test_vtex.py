@@ -114,11 +114,12 @@ class VtexColetorTests(unittest.TestCase):
 
 class RegistroVtexTests(unittest.TestCase):
     def test_lojas_nao_oficiais(self):
-        vtex = {k: i for k, i in LOJAS.items() if k not in ("mercadolivre", "amazon")}
-        self.assertEqual(len(vtex), 78)
+        vtex = {k: i for k, i in LOJAS.items() if k not in ("mercadolivre", "amazon", "kabum")}
+        self.assertEqual(len(vtex), 80)
         self.assertTrue(all(not i.oficial for i in vtex.values()))
         self.assertIn("samsclub", vtex)
         self.assertIn("chillibeans", vtex)
+        self.assertIn("authenticfeet", vtex)
 
     def test_sem_loja_repetida(self):
         from sniper.stores import VTEX

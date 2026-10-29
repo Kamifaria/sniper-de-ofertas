@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .collectors import AmazonCollector, Collector, MercadoLivreCollector, VtexCollector
+from .collectors import AmazonCollector, Collector, KabumCollector, MercadoLivreCollector, VtexCollector
 from .config import Settings
 from .ratelimit import RateLimiter
 
@@ -34,6 +34,10 @@ def _amazon(s: Settings, lim: RateLimiter) -> Optional[Collector]:
     if not (s.amazon_id and s.amazon_secret and s.amazon_tag):
         return None
     return AmazonCollector(s.amazon_id, s.amazon_secret, s.amazon_tag, limiter=lim)
+
+
+def _kabum(s: Settings, lim: RateLimiter) -> Optional[Collector]:
+    return KabumCollector(limiter=lim)
 
 
 def _vtex(chave: str, dominio: str) -> Callable[[Settings, RateLimiter], Optional[Collector]]:
@@ -88,6 +92,8 @@ VTEX = [
     ("speedo", "Speedo", "www.speedo.com.br"),
     ("crocs", "Crocs", "www.crocs.com.br"),
     ("artwalk", "Artwalk", "www.artwalk.com.br"),
+    ("authenticfeet", "Authentic Feet", "www.authenticfeet.com.br"),
+    ("kenner", "Kenner", "www.kenner.com.br"),
     ("overboard", "Overboard", "www.overboard.com.br"),
     # Moda e calçados
     ("hering", "Hering", "www.hering.com.br"),
@@ -138,5 +144,6 @@ LOJAS: dict[str, LojaInfo] = {i.chave: i for i in [
              "Clique em \"Conectar ML\" no painel e cadastre a sua conta de desenvolvedor"),
     LojaInfo("amazon", "Amazon", True, _amazon, 50,
              "Preencha [amazon] no config.toml: credencial da Creators API e tag de afiliado"),
+    LojaInfo("kabum", "KaBuM", False, _kabum, 30),
     *(LojaInfo(chave, nome, False, _vtex(chave, dominio), 30) for chave, nome, dominio in VTEX),
 ]}

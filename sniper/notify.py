@@ -7,6 +7,8 @@ import sys
 
 import httpx
 
+from .detector import causa_bug
+
 log = logging.getLogger("sniper.notify")
 
 EMOJI = {"GRATIS": "🎁", "CRITICO": "🚨", "ALTO": "🔥", "MEDIO": "💡"}
@@ -18,9 +20,13 @@ def _brl(v: float | None) -> str:
     return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _causa(a: dict) -> str:
+    return a.get("bug") or causa_bug(a["level"], a.get("reasons") or [])
+
+
 def format_text(a: dict) -> str:
-    head = f"{EMOJI.get(a['level'], '')} {a['level']} · nota {a['score']}"
-    lines = [head, a["title"], f"Agora: {_brl(a['price'])}"]
+    head = f"{EMOJI.get(a['level'], '')} BUG DE PREÇO · {a['level']} · nota {a['score']}"
+    lines = [head, f"Causa provável: {_causa(a)}", a["title"], f"Agora: {_brl(a['price'])}"]
     if a.get("ref_price"):
         lines.append(f"Referência: {_brl(a['ref_price'])} (-{(a.get('drop_pct') or 0):.0%})")
     if a.get("reasons"):
@@ -74,8 +80,8 @@ class WindowsNotifier:
         def _show():
             n = Notification(
                 app_id="Sniper de Ofertas",
-                title=f"{EMOJI.get(alert['level'], '')} {alert['level']} · {_brl(alert['price'])}",
-                msg=alert["title"][:180],
+                title=f"{EMOJI.get(alert['level'], '')} BUG DE PREÇO · {_brl(alert['price'])}",
+                msg=f"{_causa(alert)}: {alert['title']}"[:180],
                 duration="long" if alert["level"] in ("GRATIS", "CRITICO") else "short",
             )
             n.set_audio(audio.LoopingAlarm if alert["level"] in ("GRATIS", "CRITICO") else audio.Default,

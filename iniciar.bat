@@ -19,6 +19,13 @@ if not exist .venv (
   call .venv\Scripts\activate.bat
 )
 
+if exist .git (
+  where git >nul 2>nul && (
+    echo Buscando atualizacoes...
+    git pull --ff-only --quiet && pip install -q -r requirements.txt
+  )
+)
+
 if not exist config.toml copy config.exemplo.toml config.toml >nul
 if not exist data mkdir data
 

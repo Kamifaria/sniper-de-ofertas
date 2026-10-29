@@ -60,6 +60,24 @@ def _fracao_de_digitacao(price: float, refs: Sequence[float], tol: float) -> Opt
     return None
 
 
+def causa_bug(level: str, reasons: Sequence[str]) -> str:
+    """Causa provável do bug de preço, em texto curto para o alerta. "" se não houve alerta."""
+    if level == "NENHUM" or not level:
+        return ""
+    if level == "GRATIS":
+        return "Item de graça"
+    texto = " | ".join(reasons)
+    if "vírgula errada" in texto:
+        return "Vírgula no lugar errado"
+    if "concorrentes" in texto and "abaixo de" in texto:
+        return "Preço isolado muito abaixo dos concorrentes"
+    if "próprio histórico" in texto or "desde a última coleta" in texto:
+        return "Queda brusca no preço do anúncio"
+    if "piso" in texto:
+        return "Abaixo do piso da regra"
+    return "Preço fora do normal"
+
+
 def evaluate(
     offer: Offer,
     history: Sequence[float],

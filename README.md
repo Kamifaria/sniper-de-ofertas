@@ -2,10 +2,10 @@
 
 Caçador de bugs de preço para Windows, pensado para rodar 24 horas. Ele varre o catálogo das lojas, relê os itens caros com frequência, detecta preço fora do normal (erro de vírgula, item de graça, queda brusca) e avisa no painel, com notificação do Windows e no Telegram.
 
-Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catálogo**: mais vendidos de cada categoria e todos os vendedores de cada produto, porque a busca de anúncios e a leitura direta de anúncios são bloqueadas para apps comuns) e **78 lojas VTEX** pela busca pública, sem login (lista completa em `sniper/stores.py`):
+Lojas: **Mercado Livre** (API oficial, precisa de `auth_ml.py`; lê pelo **catálogo**: mais vendidos de cada categoria e todos os vendedores de cada produto, porque a busca de anúncios e a leitura direta de anúncios são bloqueadas para apps comuns) e **80 lojas VTEX** e a **KaBuM** (API pública do site) pela busca pública, sem login (lista completa em `sniper/stores.py`):
 - **Mercado, farmácia e beleza:** Americanas, Sam's Club, Atacadão, Giassi, Savegnago, Super Nosso, Zona Sul, Pague Menos, Drogaria São Paulo, Drogarias Pacheco, Drogal, Drogaria Venancio, Extrafarma, São João Farmácias, Dermage, Hinode, Jequiti.
 - **Eletro e casa:** Brastemp, Consul, Compra Certa, Electrolux, Fast Shop, Motorola, Polishop, Mondial, Arno, Oster, Multilaser, WebContinental, Tok&Stok, Brinox, Oxford Porcelanas, Telhanorte, Obramax, Amoedo, DPaschoal, Cobasi, Ri Happy.
-- **Esporte:** Asics, Mizuno, Olympikus, Fila, Umbro, Penalty, New Balance, Under Armour, Skechers, Speedo, Crocs, Artwalk, Overboard.
+- **Esporte e tênis:** Authentic Feet, Kenner, Asics, Mizuno, Olympikus, Fila, Umbro, Penalty, New Balance, Under Armour, Skechers, Speedo, Crocs, Artwalk, Overboard.
 - **Moda, calçados e acessórios:** C&A, Hering, Reserva, Animale, Farm Rio, Bobô, Aramis, Calvin Klein, Levi's, Osklen, Malwee, Morena Rosa, Lupo, Duloren, Valisere, Puket, Dakota, Ferracini, Jorge Bischoff, Piccadilly, Santa Lolla, Usaflex, Chilli Beans, Óticas Diniz, Kipling, Vivara, Monte Carlo.
 
 As lojas novas vêm desligadas: ligue no bloco **Lojas** do painel. Loja ligada sem `[[varrer]]` no config ganha sozinha uma varredura de todas as categorias a cada 60 min. Nas lojas VTEX, item que já aparece a R$ 0,00/0,01 é tratado como preço simbólico (sem alerta); só alerta quando o preço **cai** para isso. **Amazon** pela API oficial de afiliados (Creators API): veja "Ligar a Amazon". Steam, Epic, Nuuvem, Shopee e Shein vêm nas próximas fases.
@@ -50,6 +50,10 @@ A Amazon só libera preços pela **Creators API**, do programa de afiliados (a a
 3. Crie regras `[[vigiar]]` com `loja = "amazon"` e `busca` (ou `itens = ["ASIN..."]`). A busca vem do mais barato para o mais caro, a partir do `preco_minimo`, só produto novo, 10 por página.
 
 A Amazon começa liberando 1 consulta por segundo, então não há varredura de catálogo: só as buscas e a fila rápida. Os links dos alertas já saem com a sua tag de afiliado. Marca muito falsificada só alerta se for vendida pela própria Amazon.
+
+## Atualização automática
+
+Ao abrir pelo `iniciar.bat`, se a pasta veio do Git, ele roda `git pull` e reinstala as dependências. O painel também compara a versão com `versao.json` do repositório e avisa quando houver uma nova.
 
 ## Telegram (alerta no celular)
 
